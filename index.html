@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Almarai Crisis Management Platform</title>
+<style>
+/* ===== RESET & BASE ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#003399;--navy-dark:#002266;--green:#00A651;--green-dark:#008040;
+  --white:#ffffff;--gray-50:#f8f9fa;--gray-100:#f0f2f5;--gray-200:#e2e6ea;
+  --gray-300:#d1d5db;--gray-400:#9ca3af;--gray-500:#6b7280;--gray-600:#4b5563;
+  --gray-700:#374151;--gray-800:#1f2937;
+  --red:#DC3545;--orange:#FD7E14;--amber:#FFC107;--heat-green:#28A745;--dark-green:#006400;
+  --shadow:0 2px 8px rgba(0,0,0,.08);--shadow-lg:0 4px 16px rgba(0,0,0,.12);
+  --radius:8px;--radius-lg:12px;
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+html{font-size:14px}
+body{font-family:var(--font);background:var(--gray-100);color:var(--gray-800);min-height:100vh;overflow-x:hidden}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}
+input,select,textarea{font-family:inherit;outline:none}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--gray-200)}
+th{background:var(--gray-50);font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-600);position:sticky;top:0;z-index:1}
+tr:hover td{background:rgba(0,51,153,.02)}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--gray-300);border-radius:3px}
+
+/* ===== TOP BAR ===== */
+.topbar{background:var(--navy);color:var(--white);display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:56px;position:fixed;top:0;left:0;right:0;z-index:1000}
+.topbar-brand{display:flex;align-items:center;gap:12px;font-size:1.1rem;font-weight:700;letter-spacing:.3px}
+.topbar-brand svg{width:32px;height:32px}
+.topbar-user{display:flex;align-items:center;gap:10px}
+.topbar-user .avatar{width:36px;height:36px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem}
+.topbar-user .user-info{text-align:right;line-height:1.3}
+.topbar-user .user-name{font-weight:600;font-size:.9rem}
+.topbar-user .user-role{font-size:.72rem;opacity:.8;background:rgba(255,255,255,.15);padding:1px 8px;border-radius:10px;display:inline-block;margin-top:2px}
+
+/* ===== ROLE SELECTOR ===== */
+.role-selector-wrap{display:flex;align-items:center;gap:8px;margin-right:12px}
+.role-selector-wrap label{font-size:.7rem;text-transform:uppercase;letter-spacing:.5px;opacity:.7;white-space:nowrap}
+.role-selector{background:rgba(255,255,255,.12);color:var(--white);border:1px solid rgba(255,255,255,.25);border-radius:var(--radius);padding:6px 12px;font-size:.82rem;font-weight:600;cursor:pointer;min-width:200px;appearance:auto;-webkit-appearance:auto}
+.role-selector option{background:var(--navy-dark);color:var(--white)}
+
+/* ===== RBAC BANNERS ===== */
+.rbac-access-bar{padding:10px 20px;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:16px;border-radius:var(--radius)}
+.rbac-access-bar.can-edit{background:#e8f5e9;color:#1b5e20;border-left:4px solid #28A745}
+.rbac-access-bar.read-only{background:#f0f0f0;color:#555;border-left:4px solid #6C757D}
+
+/* Assigned function banner */
+.assigned-function-banner{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:16px;border:1px solid var(--gray-200)}
+.assigned-function-banner .af-avatar{width:36px;height:36px;border-radius:50%;background:var(--navy);color:var(--white);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.78rem;flex-shrink:0}
+.assigned-function-banner .af-info{flex:1}
+.assigned-function-banner .af-name{font-weight:700;font-size:.9rem;color:var(--gray-800)}
+.assigned-function-banner .af-role{font-size:.75rem;color:var(--gray-500)}
+.assigned-function-banner .af-badge{padding:4px 12px;border-radius:12px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
+.af-badge.can-edit{background:#e8f5e9;color:#1b5e20}
+.af-badge.read-only{background:var(--gray-100);color:var(--gray-500)}
+
+/* Hide elements when read-only */
+.rbac-hidden{display:none !important}
+
+/* ===== SCREENS ===== */
+.screen{display:none;padding-top:56px;min-height:100vh}
+.screen.active{display:block}
+
+/* ===== CRISIS HUB (Screen 1) ===== */
+.hub-container{max-width:1200px;margin:0 auto;padding:32px 24px}
+.hub-header{margin-bottom:32px}
+.hub-header h1{font-size:1.8rem;color:var(--navy);margin-bottom:4px}
+.hub-header p{color:var(--gray-500);font-size:.95rem}
+
+.section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.section-title h2{font-size:1.15rem;color:var(--gray-700);display:flex;align-items:center;gap:8px}
+.section-title h2 .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.section-title h2 .dot.red{background:var(--red)}
+.section-title h2 .dot.green{background:var(--heat-green)}
+
+.btn{padding:10px 20px;border-radius:var(--radius);font-weight:600;font-size:.85rem;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--navy);color:var(--white)}
+.btn-primary:hover{background:var(--navy-dark);transform:translateY(-1px);box-shadow:var(--shadow-lg)}
+.btn-danger{background:var(--red);color:var(--white)}
+.btn-danger:hover{background:#c82333}
+.btn-success{background:var(--green);color:var(--white)}
+.btn-success:hover{background:var(--green-dark)}
+.btn-outline{background:transparent;border:1.5px solid var(--gray-300);color:var(--gray-600)}
+.btn-outline:hover{border-color:var(--navy);color:var(--navy)}
+.btn-sm{padding:6px 14px;font-size:.78rem}
+.btn-xs{padding:4px 10px;font-size:.72rem}
+
+/* Crisis Cards */
+.crisis-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;margin-bottom:40px}
+.crisis-card{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:24px;cursor:pointer;transition:all .25s;border-left:5px solid var(--navy);position:relative;overflow:hidden}
+.crisis-card:hover{box-shadow:var(--shadow-lg);transform:translateY(-3px)}
+.crisis-card.severity-critical{border-left-color:var(--red)}
+.crisis-card.severity-high{border-left-color:var(--orange)}
+.crisis-card.severity-medium{border-left-color:var(--amber)}
+.crisis-card.severity-low{border-left-color:var(--heat-green)}
+.crisis-card h3{font-size:1.05rem;margin-bottom:8px;color:var(--gray-800)}
+.crisis-card .card-meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.badge{padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.badge-critical{background:#fde8e8;color:var(--red)}
+.badge-high{background:#fff3e0;color:#e65100}
+.badge-medium{background:#fff8e1;color:#f57f17}
+.badge-low{background:#e8f5e9;color:var(--dark-green)}
+.badge-posture{background:var(--gray-100);color:var(--gray-600)}
+.crisis-card .card-stats{display:flex;gap:20px;margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100)}
+.crisis-card .stat{text-align:center}
+.crisis-card .stat-val{font-size:1.3rem;font-weight:700;color:var(--navy)}
+.crisis-card .stat-label{font-size:.68rem;color:var(--gray-500);text-transform:uppercase}
+.crisis-card .day-count{position:absolute;top:20px;right:20px;font-size:.75rem;color:var(--gray-500);font-weight:600}
+
+/* Archived */
+.archived-section{margin-top:16px}
+.archived-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;padding:12px 16px;background:var(--white);border-radius:var(--radius);margin-bottom:8px;font-weight:600;color:var(--gray-600);font-size:.9rem;box-shadow:var(--shadow);user-select:none}
+.archived-toggle .chevron{transition:transform .2s;font-size:.7rem}
+.archived-toggle .chevron.open{transform:rotate(90deg)}
+.archived-list{display:none;background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.archived-list.open{display:block}
+.archived-item{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--gray-100);cursor:pointer;transition:background .15s}
+.archived-item:hover{background:var(--gray-50)}
+.archived-item:last-child{border-bottom:none}
+.archived-item .info h4{font-size:.9rem;margin-bottom:2px}
+.archived-item .info p{font-size:.75rem;color:var(--gray-500)}
+.capa-badge{padding:3px 10px;border-radius:12px;font-size:.68rem;font-weight:700}
+.capa-complete{background:#e8f5e9;color:var(--dark-green)}
+.capa-pending{background:#fff8e1;color:#f57f17}
+
+/* Bottom Nav */
+.bottom-nav{display:flex;justify-content:center;gap:24px;padding:20px;margin-top:40px}
+.bottom-nav button{display:flex;flex-direction:column;align-items:center;gap:4px;background:none;color:var(--gray-500);font-size:.7rem;padding:8px 16px;border-radius:var(--radius);transition:all .15s}
+.bottom-nav button:hover{background:var(--gray-100);color:var(--navy)}
+.bottom-nav button svg{width:20px;height:20px}
+
+/* ===== SITREP DASHBOARD (Screen 2) ===== */
+.sitrep-layout{display:flex;min-height:calc(100vh - 56px)}
+.sitrep-sidebar{width:260px;background:var(--white);border-right:1px solid var(--gray-200);padding:20px;flex-shrink:0;overflow-y:auto;position:sticky;top:56px;height:calc(100vh - 56px)}
+.sitrep-sidebar .crisis-name{font-size:1.1rem;font-weight:700;color:var(--navy);margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid var(--navy)}
+.sidebar-field{margin-bottom:16px}
+.sidebar-field label{font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-500);font-weight:600;display:block;margin-bottom:4px}
+.sidebar-field .value{font-size:.9rem;font-weight:600;color:var(--gray-700)}
+.sidebar-actions{margin-top:24px;display:flex;flex-direction:column;gap:8px}
+.sitrep-main{flex:1;overflow-y:auto}
+
+/* Crisis Header Bar */
+.crisis-header{background:var(--white);border-bottom:1px solid var(--gray-200);padding:16px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.crisis-header .left{display:flex;align-items:center;gap:16px}
+.crisis-header h2{font-size:1.15rem;color:var(--navy)}
+.crisis-header .day-badge{background:var(--navy);color:var(--white);padding:4px 14px;border-radius:20px;font-size:.78rem;font-weight:700}
+.crisis-header .reporting-cycle{font-size:.78rem;color:var(--gray-500);display:flex;align-items:center;gap:6px}
+
+/* Tab Navigation */
+.tab-nav{background:var(--white);border-bottom:2px solid var(--gray-200);padding:0 28px;display:flex;gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab-nav button{padding:14px 20px;font-size:.82rem;font-weight:600;color:var(--gray-500);background:none;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .15s;white-space:nowrap}
+.tab-nav button:hover{color:var(--navy);background:var(--gray-50)}
+.tab-nav button.active{color:var(--navy);border-bottom-color:var(--navy)}
+
+/* Tab Content */
+.tab-content{padding:28px}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+
+/* Cards inside tabs */
+.card{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:24px;margin-bottom:20px}
+.card h3{font-size:1rem;color:var(--navy);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card h3 .icon{width:20px;height:20px;opacity:.7}
+
+/* Metrics Row */
+.metrics-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px}
+.metric-card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;text-align:center;border-top:3px solid var(--navy)}
+.metric-card.red{border-top-color:var(--red)}
+.metric-card.orange{border-top-color:var(--orange)}
+.metric-card.green{border-top-color:var(--heat-green)}
+.metric-card .metric-val{font-size:2rem;font-weight:800;color:var(--navy);line-height:1}
+.metric-card .metric-label{font-size:.72rem;color:var(--gray-500);text-transform:uppercase;letter-spacing:.5px;margin-top:6px}
+
+/* Timeline */
+.timeline{position:relative;padding-left:24px}
+.timeline::before{content:'';position:absolute;left:6px;top:0;bottom:0;width:2px;background:var(--gray-200)}
+.timeline-item{position:relative;margin-bottom:20px;padding-left:16px}
+.timeline-item::before{content:'';position:absolute;left:-22px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--navy);border:2px solid var(--white);box-shadow:0 0 0 2px var(--navy)}
+.timeline-item .time{font-size:.7rem;color:var(--gray-400);margin-bottom:2px}
+.timeline-item .event{font-size:.85rem;color:var(--gray-700)}
+
+/* Heat map table */
+.heat-table td.heat-red{background:#fde8e8;color:var(--red);font-weight:700}
+.heat-table td.heat-orange{background:#fff3e0;color:#e65100;font-weight:700}
+.heat-table td.heat-amber{background:#fff8e1;color:#f57f17;font-weight:700}
+.heat-table td.heat-green{background:#e8f5e9;color:var(--dark-green);font-weight:700}
+.heat-indicator{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:6px;vertical-align:middle}
+
+/* Filters */
+.filters{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.filters select,.filters input{padding:8px 12px;border:1.5px solid var(--gray-200);border-radius:var(--radius);font-size:.82rem;background:var(--white);color:var(--gray-700)}
+.filters select:focus,.filters input:focus{border-color:var(--navy)}
+.filters label{font-size:.75rem;color:var(--gray-500);font-weight:600}
+
+/* Status pills */
+.status-pill{padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:600;display:inline-block}
+.status-on-track{background:#e8f5e9;color:var(--dark-green)}
+.status-at-risk{background:#fff8e1;color:#f57f17}
+.status-delayed{background:#fde8e8;color:var(--red)}
+.status-complete{background:#e8f5e9;color:var(--dark-green)}
+.status-in-progress{background:#e3f2fd;color:#1565c0}
+.status-not-started{background:var(--gray-100);color:var(--gray-500)}
+.status-in-transit{background:#e3f2fd;color:#1565c0}
+.status-loading{background:#fff8e1;color:#f57f17}
+.status-delivered{background:#e8f5e9;color:var(--dark-green)}
+
+/* Editable cells */
+td.editable{cursor:pointer;position:relative}
+td.editable:hover{background:rgba(0,51,153,.04)}
+td.editable input{width:60px;padding:4px 6px;border:1.5px solid var(--navy);border-radius:4px;font-size:.85rem;text-align:center}
+
+/* Priority */
+.priority-critical{color:var(--red);font-weight:700}
+.priority-high{color:var(--orange);font-weight:700}
+.priority-medium{color:var(--amber);font-weight:700}
+.priority-low{color:var(--heat-green);font-weight:700}
+
+/* Progress bar */
+.progress-bar{width:80px;height:8px;background:var(--gray-200);border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px}
+.progress-bar .fill{height:100%;border-radius:4px;transition:width .3s}
+
+/* Overdue row */
+tr.overdue td{background:#fff5f5}
+tr.due-today td{background:#fff8e1}
+
+/* Checklist */
+.checklist{list-style:none}
+.checklist li{padding:10px 0;border-bottom:1px solid var(--gray-100);display:flex;align-items:flex-start;gap:10px;font-size:.88rem}
+.checklist li:last-child{border-bottom:none}
+.checklist input[type="checkbox"]{width:18px;height:18px;accent-color:var(--navy);margin-top:2px;flex-shrink:0}
+.checklist .check-label{flex:1}
+.checklist .check-label small{display:block;color:var(--gray-400);font-size:.75rem;margin-top:2px}
+
+/* Decision Log */
+.decision-log{margin-top:16px}
+.decision-item{padding:14px;border-left:3px solid var(--navy);margin-bottom:12px;background:var(--gray-50);border-radius:0 var(--radius) var(--radius) 0}
+.decision-item .decision-date{font-size:.72rem;color:var(--gray-400)}
+.decision-item .decision-text{font-size:.88rem;margin:4px 0}
+.decision-item .decision-by{font-size:.75rem;color:var(--gray-500)}
+
+/* Presentation Mode */
+.presentation-section{page-break-inside:avoid;margin-bottom:32px;padding:28px;background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow)}
+.presentation-section h2{font-size:1.2rem;color:var(--navy);padding-bottom:12px;border-bottom:2px solid var(--navy);margin-bottom:20px}
+@media print{
+  .topbar,.tab-nav,.sitrep-sidebar,.btn,.filters,.bottom-nav{display:none !important}
+  .sitrep-main{margin:0;padding:0}
+  .presentation-section{box-shadow:none;border:1px solid var(--gray-200)}
+}
+
+/* ===== MODALS ===== */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.active{display:flex}
+.modal{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);width:100%;max-width:680px;max-height:90vh;overflow-y:auto;animation:modalIn .2s ease}
+@keyframes modalIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.modal-header{padding:20px 24px;border-bottom:1px solid var(--gray-200);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--white);z-index:1;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+.modal-header h2{font-size:1.1rem;color:var(--navy)}
+.modal-close{width:32px;height:32px;border-radius:50%;background:var(--gray-100);display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:var(--gray-500);transition:all .15s}
+.modal-close:hover{background:var(--gray-200);color:var(--gray-700)}
+.modal-body{padding:24px}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--gray-200);display:flex;justify-content:flex-end;gap:10px;position:sticky;bottom:0;background:var(--white);border-radius:0 0 var(--radius-lg) var(--radius-lg)}
+
+/* Form Groups */
+.form-group{margin-bottom:20px}
+.form-group label{display:block;font-size:.78rem;font-weight:600;color:var(--gray-600);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 14px;border:1.5px solid var(--gray-200);border-radius:var(--radius);font-size:.88rem;transition:border-color .15s;background:var(--white)}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(0,51,153,.08)}
+.form-group textarea{min-height:80px;resize:vertical}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+/* Info box */
+.info-box{background:#e8eef8;border-radius:var(--radius);padding:16px;margin-bottom:20px;border-left:4px solid var(--navy)}
+.info-box h4{font-size:.82rem;color:var(--navy);margin-bottom:8px}
+.info-box ul{list-style:none;font-size:.8rem;color:var(--gray-600)}
+.info-box ul li{padding:3px 0;display:flex;align-items:center;gap:6px}
+.info-box ul li::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--navy);flex-shrink:0}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--gray-800);color:var(--white);padding:14px 24px;border-radius:var(--radius);font-size:.85rem;font-weight:600;z-index:3000;display:none;animation:toastIn .3s ease;box-shadow:var(--shadow-lg)}
+.toast.show{display:block}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:900px){
+  .sitrep-sidebar{display:none}
+  .crisis-grid{grid-template-columns:1fr}
+  .form-row{grid-template-columns:1fr}
+  .metrics-row{grid-template-columns:repeat(2,1fr)}
+  .tab-nav{padding:0 12px}
+  .tab-nav button{padding:12px 14px;font-size:.76rem}
+  .tab-content{padding:16px}
+  .role-selector-wrap{display:none}
+}
+@media(max-width:600px){
+  .topbar-brand span{display:none}
+  .metrics-row{grid-template-columns:1fr}
+  .hub-container{padding:20px 12px}
+}
+
+/* Textarea auto */
+textarea.exec-summary{min-height:120px;width:100%;padding:14px;border:1.5px solid var(--gray-200);border-radius:var(--radius);font-size:.88rem;line-height:1.6;resize:vertical}
+textarea.exec-summary:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(0,51,153,.08)}
+
+/* Countdown */
+.countdown{display:flex;gap:12px;margin-top:10px}
+.countdown .unit{text-align:center;background:var(--navy);color:var(--white);padding:10px 14px;border-radius:var(--radius);min-width:60px}
+.countdown .unit .num{font-size:1.4rem;font-weight:800;line-height:1}
+.countdown .unit .lbl{font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;opacity:.8;margin-top:2px}
+
+/* Back button */
+.back-btn{display:inline-flex;align-items:center;gap:6px;color:var(--gray-500);font-size:.82rem;font-weight:600;background:none;padding:8px 0;margin-bottom:8px;transition:color .15s}
+.back-btn:hover{color:var(--navy)}
+
+/* Staff summary */
+.staff-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.staff-card{text-align:center;padding:20px;background:var(--gray-50);border-radius:var(--radius);border:1px solid var(--gray-200)}
+.staff-card .num{font-size:2rem;font-weight:800;color:var(--navy)}
+.staff-card .label{font-size:.75rem;color:var(--gray-500);text-transform:uppercase;margin-top:4px}
+
+/* Sortable header */
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{background:var(--gray-200)}
+th.sortable::after{content:' \u2195';font-size:.7rem;opacity:.4}
+</style>
+</head>
+<body>
+
+<!-- ===== TOP BAR ===== -->
+<header class="topbar">
+  <div class="topbar-brand">
+    <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="6" fill="#00A651"/><path d="M6 22V10l10-4 10 4v12l-10 4-10-4z" fill="#fff" fill-opacity=".9"/><path d="M16 6v20M6 10l10 6 10-6" stroke="#003399" stroke-width="1.5"/></svg>
+    <span>Almarai Crisis Management Platform</span>
+  </div>
+  <div class="topbar-user">
+    <div class="role-selector-wrap">
+      <label>Viewing as:</label>
+      <select class="role-selector" id="role-selector" onchange="onRoleChange()">
+        <option value="admin">Admin (Uthman AlMousaed)</option>
+        <option value="ccmt_leader">CCMT Leader (Fawaz Aljasser)</option>
+        <option value="ccmt_member">CCMT Member (Nikolaos Stavridis)</option>
+        <option value="supply_chain">Supply Chain Rep (Nigel Phillips)</option>
+        <option value="erm">ERM Rep (Gordon Bateman)</option>
+        <option value="hse">HSE Rep</option>
+        <option value="hr">HR Rep</option>
+        <option value="planning">Planning Rep</option>
+        <option value="procurement">Procurement Rep</option>
+        <option value="sales">Sales Rep (Ali Puri)</option>
+        <option value="ceo">CEO</option>
+      </select>
+    </div>
+    <div class="user-info">
+      <div class="user-name" id="topbar-user-name">Uthman AlMousaed</div>
+      <div class="user-role" id="topbar-user-role">Admin</div>
+    </div>
+    <div class="avatar" id="topbar-avatar">UA</div>
+  </div>
+</header>
+
+<!-- ===== SCREEN 1: CRISIS HUB ===== -->
+<div id="screen-hub" class="screen active">
+  <div class="hub-container">
+    <div class="hub-header">
+      <h1>Crisis Hub</h1>
+      <p>Business Continuity & Crisis Management Command Center</p>
+    </div>
+
+    <!-- Active Crises -->
+    <div class="section-title">
+      <h2><span class="dot red"></span> Active Crises</h2>
+      <button class="btn btn-danger" id="btn-activate-crisis" onclick="openModal('modal-new-crisis')">+ Activate New Crisis</button>
+    </div>
+    <div class="crisis-grid" id="active-crises-grid">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- Archived Crises -->
+    <div class="section-title" style="margin-top:40px">
+      <h2><span class="dot green"></span> Archived Crises</h2>
+    </div>
+    <div class="archived-section">
+      <div class="archived-toggle" onclick="toggleArchived()">
+        <span class="chevron" id="archive-chevron">&#9654;</span>
+        <span>View Archived Crises (<span id="archive-count">0</span>)</span>
+      </div>
+      <div class="archived-list" id="archived-list">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <div class="bottom-nav">
+      <button onclick="showToast('Settings panel coming soon')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        Settings
+      </button>
+      <button onclick="showToast('User Roles management coming soon')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        User Roles
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCREEN 2: SITREP DASHBOARD ===== -->
+<div id="screen-sitrep" class="screen">
+  <div class="sitrep-layout">
+    <!-- Sidebar -->
+    <aside class="sitrep-sidebar">
+      <button class="back-btn" onclick="goToHub()">&#8592; Back to Hub</button>
+      <div class="crisis-name" id="sidebar-crisis-name"></div>
+      <div class="sidebar-field"><label>Severity</label><div class="value" id="sidebar-severity"></div></div>
+      <div class="sidebar-field"><label>Posture</label><div class="value" id="sidebar-posture"></div></div>
+      <div class="sidebar-field"><label>Activated</label><div class="value" id="sidebar-activated"></div></div>
+      <div class="sidebar-field"><label>Day of Crisis</label><div class="value" id="sidebar-day"></div></div>
+      <div class="sidebar-field"><label>Reporting Cycle</label><div class="value" id="sidebar-cycle"></div></div>
+      <div class="sidebar-field"><label>ISO 22361 Level</label><div class="value" id="sidebar-iso-level"></div></div>
+      <div class="sidebar-actions">
+        <button class="btn btn-primary btn-sm" onclick="showToast('SitRep exported')">Export SitRep</button>
+        <button class="btn btn-outline btn-sm" id="btn-resolve-crisis" onclick="openModal('modal-resolve')">Resolve Crisis</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="sitrep-main">
+      <!-- Crisis Header -->
+      <div class="crisis-header">
+        <div class="left">
+          <h2 id="header-crisis-name"></h2>
+          <span class="badge" id="header-severity-badge"></span>
+          <span class="badge badge-posture" id="header-posture-badge"></span>
+          <span class="day-badge" id="header-day-badge"></span>
+        </div>
+        <div class="reporting-cycle">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <span id="header-cycle"></span>
+        </div>
+      </div>
+
+      <!-- Tab Navigation -->
+      <nav class="tab-nav" id="tab-nav">
+        <button class="active" data-tab="overview">Overview</button>
+        <button data-tab="materials">Materials &amp; Supply</button>
+        <button data-tab="shipping">Shipping</button>
+        <button data-tab="actions">Actions</button>
+        <button data-tab="debris">Debris</button>
+        <button data-tab="people">People &amp; Safety</button>
+        <button data-tab="governance">Governance</button>
+        <button data-tab="presentation">Presentation Mode</button>
+      </nav>
+
+      <!-- Tab Contents -->
+      <div class="tab-content">
+
+        <!-- OVERVIEW TAB -->
+        <div class="tab-pane active" id="tab-overview">
+          <div id="rbac-banner-overview"></div>
+          <div id="rbac-assigned-overview"></div>
+          <div class="metrics-row">
+            <div class="metric-card"><div class="metric-val" id="m-materials">5</div><div class="metric-label">Materials Monitored</div></div>
+            <div class="metric-card red"><div class="metric-val" id="m-critical">1</div><div class="metric-label">Critical Items</div></div>
+            <div class="metric-card"><div class="metric-val" id="m-shipments">2</div><div class="metric-label">Active Shipments</div></div>
+            <div class="metric-card orange"><div class="metric-val" id="m-actions">3</div><div class="metric-label">Open Actions</div></div>
+            <div class="metric-card"><div class="metric-val" id="m-debris">5</div><div class="metric-label">Debris Incidents</div></div>
+          </div>
+
+          <div class="card">
+            <h3>Executive Summary</h3>
+            <textarea class="exec-summary" id="exec-summary">The Iran geopolitical crisis continues to impact Almarai's supply chain operations, particularly affecting raw material imports through the Strait of Hormuz. Key concerns include CPP Resin availability (4 weeks coverage, critical), PBIC availability for bakery operations, and shipping route disruptions.
+
+Current posture is DEFENSIVE with focus on securing alternative supply routes through Jeddah Islamic Port and building safety stock for critical materials. Two emergency shipments are in transit. GSNRC has been notified per national resilience requirements.
+
+Next 48-hour priorities:
+1. Confirm CPP Resin alternative supplier (Turkey) contract
+2. Monitor Shipment ALM-2026-042 ETA (critical cargo)
+3. Complete staff safety assessment for Eastern Province facilities</textarea>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+            <div class="card">
+              <h3>Crisis Timeline</h3>
+              <div class="timeline">
+                <div class="timeline-item"><div class="time">23 Mar 2026, 08:00</div><div class="event">Daily SitRep #8 published to CMT</div></div>
+                <div class="timeline-item"><div class="time">22 Mar 2026, 16:30</div><div class="event">CPP Resin alternative supplier identified (Turkey)</div></div>
+                <div class="timeline-item"><div class="time">22 Mar 2026, 09:00</div><div class="event">GSNRC status update submitted</div></div>
+                <div class="timeline-item"><div class="time">21 Mar 2026, 14:00</div><div class="event">Emergency shipment ALM-2026-043 dispatched</div></div>
+                <div class="timeline-item"><div class="time">20 Mar 2026, 11:00</div><div class="event">Shipping route diverted via Jeddah Islamic Port</div></div>
+                <div class="timeline-item"><div class="time">19 Mar 2026, 08:00</div><div class="event">Posture changed from Monitoring to Defensive</div></div>
+                <div class="timeline-item"><div class="time">15 Mar 2026, 06:00</div><div class="event">Crisis activated by CEO directive</div></div>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Next Reporting Deadline</h3>
+              <p style="font-size:.85rem;color:var(--gray-500);margin-bottom:12px">Daily SitRep #9 due:</p>
+              <p style="font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:12px">24 March 2026, 08:00 AST</p>
+              <div class="countdown" id="countdown">
+                <div class="unit"><div class="num" id="cd-hours">--</div><div class="lbl">Hours</div></div>
+                <div class="unit"><div class="num" id="cd-mins">--</div><div class="lbl">Minutes</div></div>
+                <div class="unit"><div class="num" id="cd-secs">--</div><div class="lbl">Seconds</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MATERIALS & SUPPLY TAB -->
+        <div class="tab-pane" id="tab-materials">
+          <div id="rbac-banner-materials"></div>
+          <div id="rbac-assigned-materials"></div>
+          <div class="card">
+            <h3>Material Inventory Heat Map</h3>
+            <div class="filters">
+              <div><label>Business Unit</label><select id="filter-bu" onchange="filterMaterials()"><option value="">All BUs</option><option>Bakery</option><option>Dairy</option><option>Juice</option><option>Foods</option><option>IPNC</option></select></div>
+              <div><label>Heat Status</label><select id="filter-heat" onchange="filterMaterials()"><option value="">All</option><option value="red">Red (Critical)</option><option value="orange">Orange (Warning)</option><option value="amber">Amber (Watch)</option><option value="green">Green (Healthy)</option></select></div>
+            </div>
+            <div style="overflow-x:auto">
+              <table class="heat-table" id="materials-table">
+                <thead>
+                  <tr>
+                    <th>Material</th>
+                    <th>Business Unit</th>
+                    <th class="sortable" onclick="sortTable('materials-table',2)">Coverage (Weeks)</th>
+                    <th>Run-out Week</th>
+                    <th>Heat Status</th>
+                    <th>Trend</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody id="materials-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SHIPPING TAB -->
+        <div class="tab-pane" id="tab-shipping">
+          <div id="rbac-banner-shipping"></div>
+          <div id="rbac-assigned-shipping"></div>
+          <div class="card">
+            <h3>Shipment Tracker</h3>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+              <button class="btn btn-primary btn-sm rbac-edit-shipping" onclick="openModal('modal-add-shipment')">+ Add Shipment</button>
+            </div>
+            <div style="overflow-x:auto">
+              <table id="shipping-table">
+                <thead>
+                  <tr>
+                    <th>Shipment ID</th>
+                    <th>Name</th>
+                    <th>Origin</th>
+                    <th>Destination</th>
+                    <th class="sortable" onclick="sortTable('shipping-table',4)">ETA</th>
+                    <th>Status</th>
+                    <th>Freight Cost</th>
+                  </tr>
+                </thead>
+                <tbody id="shipping-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ACTIONS TAB -->
+        <div class="tab-pane" id="tab-actions">
+          <div id="rbac-banner-actions"></div>
+          <div id="rbac-assigned-actions"></div>
+          <div class="card">
+            <h3>Action Tracker</h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+              <div class="filters" style="margin-bottom:0">
+                <div><label>Status</label><select id="filter-action-status" onchange="filterActions()"><option value="">All</option><option>Not Started</option><option>In Progress</option><option>Complete</option><option>Delayed</option></select></div>
+              </div>
+              <button class="btn btn-primary btn-sm rbac-edit-actions" onclick="openModal('modal-add-action')">+ Add Action</button>
+            </div>
+            <div style="overflow-x:auto">
+              <table id="actions-table">
+                <thead>
+                  <tr>
+                    <th>Action</th>
+                    <th>Assigned To</th>
+                    <th>Priority</th>
+                    <th class="sortable" onclick="sortTable('actions-table',3)">Due Date</th>
+                    <th>Status</th>
+                    <th>% Complete</th>
+                  </tr>
+                </thead>
+                <tbody id="actions-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- DEBRIS TAB -->
+        <div class="tab-pane" id="tab-debris">
+          <div id="rbac-banner-debris"></div>
+          <div id="rbac-assigned-debris"></div>
+          <div class="card">
+            <h3>Debris &amp; Incident Log</h3>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+              <button class="btn btn-primary btn-sm rbac-edit-debris" onclick="openModal('modal-add-debris')">+ Log Incident</button>
+            </div>
+            <div style="overflow-x:auto">
+              <table id="debris-table">
+                <thead>
+                  <tr>
+                    <th>Incident</th>
+                    <th>Location</th>
+                    <th>Injuries</th>
+                    <th>Damage Description</th>
+                    <th class="sortable" onclick="sortTable('debris-table',4)">Date</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="debris-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- PEOPLE & SAFETY TAB -->
+        <div class="tab-pane" id="tab-people">
+          <div id="rbac-banner-people"></div>
+          <div id="rbac-assigned-people"></div>
+          <div class="card">
+            <h3>Staff Status Summary</h3>
+            <div class="staff-grid">
+              <div class="staff-card"><div class="num">2,847</div><div class="label">Total Staff in Affected Areas</div></div>
+              <div class="staff-card"><div class="num" style="color:var(--heat-green)">2,791</div><div class="label">Confirmed Safe</div></div>
+              <div class="staff-card"><div class="num" style="color:var(--orange)">48</div><div class="label">Working Remotely</div></div>
+              <div class="staff-card"><div class="num" style="color:var(--red)">8</div><div class="label">Unaccounted</div></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+            <div class="card">
+              <h3>Safety Incidents</h3>
+              <div class="staff-grid">
+                <div class="staff-card"><div class="num" style="color:var(--red)">0</div><div class="label">Fatalities</div></div>
+                <div class="staff-card"><div class="num" style="color:var(--orange)">2</div><div class="label">Injuries Reported</div></div>
+                <div class="staff-card"><div class="num" style="color:var(--amber)">5</div><div class="label">Near Misses</div></div>
+              </div>
+              <div style="margin-top:16px">
+                <table>
+                  <thead><tr><th>Incident</th><th>Type</th><th>Date</th><th>Status</th></tr></thead>
+                  <tbody>
+                    <tr><td>Warehouse shelf collapse - Al Kharj</td><td>Injury</td><td>20 Mar 2026</td><td><span class="status-pill status-in-progress">Under Investigation</span></td></tr>
+                    <tr><td>Forklift near-miss - Riyadh DC</td><td>Near Miss</td><td>21 Mar 2026</td><td><span class="status-pill status-complete">Closed</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Evacuation Status</h3>
+              <div class="staff-grid">
+                <div class="staff-card"><div class="num">3</div><div class="label">Facilities on Alert</div></div>
+                <div class="staff-card"><div class="num" style="color:var(--heat-green)">0</div><div class="label">Active Evacuations</div></div>
+              </div>
+              <div style="margin-top:16px">
+                <table>
+                  <thead><tr><th>Facility</th><th>Status</th><th>Last Drill</th></tr></thead>
+                  <tbody>
+                    <tr><td>Al Kharj Main Plant</td><td><span class="status-pill status-at-risk">On Alert</span></td><td>10 Feb 2026</td></tr>
+                    <tr><td>Riyadh Distribution Center</td><td><span class="status-pill status-at-risk">On Alert</span></td><td>15 Feb 2026</td></tr>
+                    <tr><td>Jeddah Cold Storage</td><td><span class="status-pill status-at-risk">On Alert</span></td><td>20 Feb 2026</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- GOVERNANCE TAB -->
+        <div class="tab-pane" id="tab-governance">
+          <div id="rbac-banner-governance"></div>
+          <div id="rbac-assigned-governance"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+            <div class="card">
+              <h3>ISO 22361 Compliance</h3>
+              <ul class="checklist" id="iso-checklist"></ul>
+            </div>
+            <div class="card">
+              <h3>GSNRC Controls</h3>
+              <ul class="checklist" id="gsnrc-checklist"></ul>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px">
+            <div class="card">
+              <h3>Reporting Cycle</h3>
+              <table>
+                <thead><tr><th>Report</th><th>Frequency</th><th>Last Submitted</th><th>Next Due</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr><td>Daily SitRep</td><td>Daily 08:00</td><td>23 Mar 08:00</td><td>24 Mar 08:00</td><td><span class="status-pill status-on-track">On Track</span></td></tr>
+                  <tr><td>CMT Briefing</td><td>Daily 14:00</td><td>23 Mar 14:00</td><td>24 Mar 14:00</td><td><span class="status-pill status-on-track">On Track</span></td></tr>
+                  <tr><td>Board Update</td><td>Weekly (Sun)</td><td>22 Mar</td><td>29 Mar</td><td><span class="status-pill status-on-track">On Track</span></td></tr>
+                  <tr><td>GSNRC Report</td><td>As Required</td><td>22 Mar</td><td>When triggered</td><td><span class="status-pill status-complete">Submitted</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card">
+              <h3>CAPA Tracker</h3>
+              <div class="info-box">
+                <h4>Post-Crisis Corrective Actions</h4>
+                <ul>
+                  <li>CAPA items are initiated upon crisis resolution</li>
+                  <li>ISO 22361 requires formal post-incident review</li>
+                  <li>Current crisis is ACTIVE - CAPA will be available after resolution</li>
+                </ul>
+              </div>
+              <button class="btn btn-outline btn-sm" disabled style="opacity:.5">CAPA Not Available (Crisis Active)</button>
+            </div>
+          </div>
+          <div class="card" style="margin-top:20px">
+            <h3>Decision Log</h3>
+            <div class="decision-log" id="decision-log"></div>
+            <button class="btn btn-outline btn-sm rbac-edit-governance" style="margin-top:12px" onclick="openModal('modal-add-decision')">+ Add Decision</button>
+          </div>
+        </div>
+
+        <!-- PRESENTATION MODE TAB -->
+        <div class="tab-pane" id="tab-presentation">
+          <div id="rbac-banner-presentation"></div>
+          <div id="rbac-assigned-presentation"></div>
+          <div style="text-align:right;margin-bottom:16px">
+            <button class="btn btn-primary btn-sm" onclick="window.print()">Print / Export PDF</button>
+          </div>
+          <div id="presentation-content">
+            <!-- Generated by JS -->
+          </div>
+        </div>
+
+      </div><!-- /tab-content -->
+    </div><!-- /sitrep-main -->
+  </div><!-- /sitrep-layout -->
+</div>
+
+<!-- ===== MODALS ===== -->
+
+<!-- New Crisis Modal -->
+<div class="modal-overlay" id="modal-new-crisis">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Activate New Crisis</h2>
+      <button class="modal-close" onclick="closeModal('modal-new-crisis')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="info-box">
+        <h4>ISO 22361 Crisis Classification Guide</h4>
+        <ul>
+          <li><strong>Level 1 (Low):</strong> Localized incident, single BU affected, no media attention</li>
+          <li><strong>Level 2 (Medium):</strong> Multiple BUs affected, potential regulatory interest</li>
+          <li><strong>Level 3 (High):</strong> Significant operational impact, media coverage, regulatory action likely</li>
+          <li><strong>Level 4 (Critical):</strong> Enterprise-wide threat, national/international attention, existential risk</li>
+        </ul>
+      </div>
+      <div class="form-group">
+        <label>Crisis Name</label>
+        <input type="text" id="new-crisis-name" placeholder="e.g., Supply Chain Disruption - Red Sea">
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="new-crisis-desc" placeholder="Brief description of the crisis situation..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Severity</label>
+          <select id="new-crisis-severity">
+            <option value="Critical">Critical (Level 4)</option>
+            <option value="High" selected>High (Level 3)</option>
+            <option value="Medium">Medium (Level 2)</option>
+            <option value="Low">Low (Level 1)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Initial Posture</label>
+          <select id="new-crisis-posture">
+            <option>Monitoring</option>
+            <option>Defensive</option>
+            <option>Offensive</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Activation Date</label>
+          <input type="date" id="new-crisis-date" value="2026-03-23">
+        </div>
+        <div class="form-group">
+          <label>Reporting Cycle</label>
+          <select id="new-crisis-cycle">
+            <option>Daily</option>
+            <option>Twice Daily</option>
+            <option>Weekly</option>
+          </select>
+        </div>
+      </div>
+      <div class="info-box" style="background:#fff8e1;border-left-color:var(--amber)">
+        <h4>GSNRC Notification Checklist</h4>
+        <ul>
+          <li><label><input type="checkbox" style="margin-right:6px"> Notify GSNRC Crisis Desk</label></li>
+          <li><label><input type="checkbox" style="margin-right:6px"> Critical Infrastructure Protection form submitted</label></li>
+          <li><label><input type="checkbox" style="margin-right:6px"> National Resilience reporting obligations acknowledged</label></li>
+          <li><label><input type="checkbox" style="margin-right:6px"> Business Continuity Plan activation confirmed</label></li>
+        </ul>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-new-crisis')">Cancel</button>
+      <button class="btn btn-danger" onclick="activateNewCrisis()">ACTIVATE CRISIS</button>
+    </div>
+  </div>
+</div>
+
+<!-- Resolve Crisis Modal -->
+<div class="modal-overlay" id="modal-resolve">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Resolve &amp; Archive Crisis</h2>
+      <button class="modal-close" onclick="closeModal('modal-resolve')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Resolution Summary</label>
+        <textarea id="resolve-summary" placeholder="Summarize how the crisis was resolved..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Resolution Date</label>
+        <input type="date" id="resolve-date" value="2026-03-23">
+      </div>
+      <div class="info-box">
+        <h4>ISO 22361 Post-Incident Review Requirements</h4>
+        <ul>
+          <li>Formal CAPA (Corrective and Preventive Actions) must be initiated</li>
+          <li>Lessons learned workshop to be scheduled within 14 days</li>
+          <li>All documentation to be archived per retention policy</li>
+          <li>Stakeholder debrief required within 7 days</li>
+        </ul>
+      </div>
+      <div class="form-group">
+        <label>CAPA Initiation - Key Corrective Actions</label>
+        <textarea id="resolve-capa" placeholder="List initial corrective actions to be tracked..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Lessons Learned (Initial)</label>
+        <textarea id="resolve-lessons" placeholder="Capture initial lessons learned..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-resolve')">Cancel</button>
+      <button class="btn btn-danger" onclick="resolveCrisis()">ARCHIVE &amp; TRIGGER CAPA</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Shipment Modal -->
+<div class="modal-overlay" id="modal-add-shipment">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add Shipment</h2>
+      <button class="modal-close" onclick="closeModal('modal-add-shipment')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>Shipment Name</label><input type="text" id="ship-name" placeholder="e.g., Emergency CPP Resin"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Origin</label><input type="text" id="ship-origin" placeholder="e.g., Istanbul, Turkey"></div>
+        <div class="form-group"><label>Destination</label><input type="text" id="ship-dest" placeholder="e.g., Jeddah Islamic Port"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>ETA</label><input type="date" id="ship-eta"></div>
+        <div class="form-group"><label>Freight Cost (SAR)</label><input type="text" id="ship-cost" placeholder="e.g., 125,000"></div>
+      </div>
+      <div class="form-group"><label>Status</label><select id="ship-status"><option>Loading</option><option>In Transit</option><option>Customs</option><option>Delivered</option></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-add-shipment')">Cancel</button>
+      <button class="btn btn-primary" onclick="addShipment()">Add Shipment</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Action Modal -->
+<div class="modal-overlay" id="modal-add-action">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add Action</h2>
+      <button class="modal-close" onclick="closeModal('modal-add-action')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>Action Description</label><input type="text" id="action-desc" placeholder="e.g., Contact alternative suppliers"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Assigned To</label><input type="text" id="action-assignee" placeholder="e.g., Mohammed Al-Rashid"></div>
+        <div class="form-group"><label>Priority</label><select id="action-priority"><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Due Date</label><input type="date" id="action-due"></div>
+        <div class="form-group"><label>Status</label><select id="action-status"><option>Not Started</option><option>In Progress</option><option>Complete</option></select></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-add-action')">Cancel</button>
+      <button class="btn btn-primary" onclick="addAction()">Add Action</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Debris Modal -->
+<div class="modal-overlay" id="modal-add-debris">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Log Incident</h2>
+      <button class="modal-close" onclick="closeModal('modal-add-debris')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>Incident Name</label><input type="text" id="debris-name" placeholder="e.g., Fallen scaffolding"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Location</label><input type="text" id="debris-location" placeholder="e.g., Al Kharj Plant"></div>
+        <div class="form-group"><label>Injuries</label><select id="debris-injuries"><option>None</option><option>Minor</option><option>Major</option><option>Fatal</option></select></div>
+      </div>
+      <div class="form-group"><label>Damage Description</label><textarea id="debris-damage" placeholder="Describe the damage..."></textarea></div>
+      <div class="form-group"><label>Date</label><input type="date" id="debris-date"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-add-debris')">Cancel</button>
+      <button class="btn btn-primary" onclick="addDebris()">Log Incident</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Decision Modal -->
+<div class="modal-overlay" id="modal-add-decision">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add Decision</h2>
+      <button class="modal-close" onclick="closeModal('modal-add-decision')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>Decision</label><textarea id="decision-text" placeholder="Describe the decision made..."></textarea></div>
+      <div class="form-group"><label>Decided By</label><input type="text" id="decision-by" placeholder="e.g., CEO / CMT"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-add-decision')">Cancel</button>
+      <button class="btn btn-primary" onclick="addDecision()">Add Decision</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== RBAC SYSTEM =====
+var RBAC = {
+  roles: {
+    admin:        { name: 'Admin',            person: 'Uthman AlMousaed',     initials: 'UA', email: 'uthman.almousaed@almarai.com' },
+    ccmt_leader:  { name: 'CCMT Leader',      person: 'Fawaz Aljasser',       initials: 'FA', email: 'fawaz.aljasser@almarai.com' },
+    ccmt_member:  { name: 'CCMT Member',      person: 'Nikolaos Stavridis',   initials: 'NS', email: 'nikolaos.stavridis@almarai.com' },
+    supply_chain: { name: 'Supply Chain Rep',  person: 'Nigel Phillips',       initials: 'NP', email: 'nigel.phillips@almarai.com' },
+    erm:          { name: 'ERM Rep',           person: 'Gordon Ivor Bateman',  initials: 'GB', email: 'gordon.bateman@almarai.com' },
+    hse:          { name: 'HSE Rep',           person: 'HSE Representative',   initials: 'HS', email: 'hse.rep@almarai.com' },
+    hr:           { name: 'HR Rep',            person: 'HR Representative',    initials: 'HR', email: 'hr.rep@almarai.com' },
+    planning:     { name: 'Planning Rep',      person: 'Planning Representative', initials: 'PL', email: 'planning.rep@almarai.com' },
+    procurement:  { name: 'Procurement Rep',   person: 'Procurement Representative', initials: 'PR', email: 'procurement.rep@almarai.com' },
+    sales:        { name: 'Sales Rep',         person: 'Ali Puri',             initials: 'AP', email: 'ali.puri@almarai.com' },
+    ceo:          { name: 'CEO',               person: 'CEO',                  initials: 'CE', email: 'ceo@almarai.com' }
+  },
+
+  // Tab edit permissions: which roles can edit each tab
+  tabPermissions: {
+    overview:     ['admin', 'ccmt_leader', 'ceo'],
+    materials:    ['admin', 'ccmt_leader', 'ceo', 'supply_chain', 'planning'],
+    shipping:     ['admin', 'ccmt_leader', 'ceo', 'supply_chain', 'procurement'],
+    actions:      ['admin', 'ccmt_leader', 'ceo', 'erm'],
+    debris:       ['admin', 'ccmt_leader', 'ceo', 'hse'],
+    people:       ['admin', 'ccmt_leader', 'ceo', 'hr'],
+    governance:   ['admin', 'ccmt_leader', 'ceo', 'erm'],
+    presentation: []  // read-only for all
+  },
+
+  // Hub-level permissions
+  hubPermissions: {
+    activateCrisis: ['admin', 'ccmt_leader'],
+    resolveCrisis:  ['admin', 'ccmt_leader']
+  },
+
+  // Assigned function person per tab
+  tabAssignments: {
+    overview:     { person: 'Fawaz Aljasser',       role: 'CCMT Leader',                initials: 'FA', email: 'fawaz.aljasser@almarai.com' },
+    materials:    { person: 'Nigel Phillips',        role: 'Supply Chain Rep',           initials: 'NP', email: 'nigel.phillips@almarai.com' },
+    shipping:     { person: 'Nigel Phillips + Procurement Rep', role: 'Supply Chain / Procurement', initials: 'NP', email: 'nigel.phillips@almarai.com' },
+    actions:      { person: 'Gordon Ivor Bateman',   role: 'ERM Rep',                    initials: 'GB', email: 'gordon.bateman@almarai.com' },
+    debris:       { person: 'HSE Representative',    role: 'HSE',                        initials: 'HS', email: 'hse.rep@almarai.com' },
+    people:       { person: 'HR Representative',     role: 'HR',                         initials: 'HR', email: 'hr.rep@almarai.com' },
+    governance:   { person: 'Gordon Ivor Bateman',   role: 'ERM Rep',                    initials: 'GB', email: 'gordon.bateman@almarai.com' },
+    presentation: { person: 'All Users',             role: 'Read-Only',                  initials: 'AL', email: '' }
+  },
+
+  currentRole: 'admin',
+
+  canEdit: function(tabId) {
+    return this.tabPermissions[tabId].indexOf(this.currentRole) !== -1;
+  },
+
+  canActivateCrisis: function() {
+    return this.hubPermissions.activateCrisis.indexOf(this.currentRole) !== -1;
+  },
+
+  canResolveCrisis: function() {
+    return this.hubPermissions.resolveCrisis.indexOf(this.currentRole) !== -1;
+  },
+
+  getCurrentRoleInfo: function() {
+    return this.roles[this.currentRole];
+  }
+};
+
+// ===== DATA =====
+var APP = {
+  activeCrises: [
+    {
+      id: 1,
+      name: "Iran Geopolitical Crisis",
+      description: "Escalation of geopolitical tensions in the Gulf region affecting supply chain routes through the Strait of Hormuz and regional stability.",
+      severity: "High",
+      posture: "Defensive",
+      activatedDate: "2026-03-15",
+      reportingCycle: "Daily",
+      isoLevel: "Level 3",
+      materials: 5, criticalItems: 1, shipments: 2, actions: 3, debris: 5
+    }
+  ],
+  archivedCrises: [
+    {
+      id: 100,
+      name: "COVID-19 Supply Chain Disruption",
+      description: "Global pandemic causing widespread supply chain disruption affecting raw material availability and logistics.",
+      severity: "Critical",
+      posture: "Offensive",
+      activatedDate: "2020-03-15",
+      resolvedDate: "2021-06-30",
+      capaStatus: "Complete",
+      reportingCycle: "Daily",
+      isoLevel: "Level 4"
+    }
+  ],
+  materials: [
+    { name: "CPP Resin", bu: "Foods", coverageWeeks: 4, runoutWeek: "W15 2026", heat: "red", trend: "down", notes: "Critical - seeking Turkey alternative" },
+    { name: "Sugar", bu: "IPNC", coverageWeeks: 8, runoutWeek: "W19 2026", heat: "orange", trend: "stable", notes: "Monitoring Gulf route disruption" },
+    { name: "PBIC", bu: "Bakery", coverageWeeks: 12, runoutWeek: "W23 2026", heat: "amber", trend: "down", notes: "Building safety stock" },
+    { name: "Fresh Yeast", bu: "Dairy", coverageWeeks: 16, runoutWeek: "W27 2026", heat: "green", trend: "up", notes: "Local supply secured" },
+    { name: "Milk Powder", bu: "Juice", coverageWeeks: 10, runoutWeek: "W21 2026", heat: "amber", trend: "stable", notes: "Alternative NZ supplier on standby" }
+  ],
+  shipments: [
+    { id: "ALM-2026-042", name: "Emergency CPP Resin Cargo", origin: "Istanbul, Turkey", destination: "Jeddah Islamic Port", eta: "2026-03-28", status: "In Transit", cost: "SAR 185,000" },
+    { id: "ALM-2026-043", name: "Sugar & PBIC Combined", origin: "Santos, Brazil", destination: "Dammam Port", eta: "2026-04-05", status: "Loading", cost: "SAR 312,000" }
+  ],
+  actions: [
+    { desc: "Confirm CPP Resin alternative supplier contract (Turkey)", assignee: "Mohammed Al-Rashid", priority: "Critical", due: "2026-03-24", status: "In Progress", pct: 60 },
+    { desc: "Complete Eastern Province staff safety assessment", assignee: "Sara Al-Dosari", priority: "High", due: "2026-03-23", status: "In Progress", pct: 40 },
+    { desc: "Submit updated BCP to GSNRC", assignee: "Uthman AlMousaed", priority: "High", due: "2026-03-25", status: "Not Started", pct: 0 }
+  ],
+  debris: [
+    { name: "Warehouse shelf collapse", location: "Al Kharj Main Plant", injuries: "Minor (1)", damage: "Section B shelving unit collapsed due to overloading during emergency stock build-up. Approx 200 cartons damaged.", date: "2026-03-20", status: "Under Investigation" },
+    { name: "Forklift collision", location: "Riyadh Distribution Center", injuries: "None", damage: "Forklift struck loading dock door during rushed operations. Door mechanism damaged, temporary fix in place.", date: "2026-03-21", status: "Resolved" },
+    { name: "Chemical spill - cleaning agent", location: "Al Kharj Dairy Processing", injuries: "None", damage: "Small cleaning agent spill (5L) in processing area during shift change. Area decontaminated per HAZMAT protocol.", date: "2026-03-19", status: "Resolved" },
+    { name: "Power fluctuation damage", location: "Jeddah Cold Storage", injuries: "None", damage: "Grid power fluctuation caused temperature excursion in Zone C. 12 pallets of product quarantined pending QA review.", date: "2026-03-18", status: "Under Investigation" },
+    { name: "Transport vehicle accident", location: "Highway 65 near Al Kharj", injuries: "Minor (1)", damage: "Delivery truck minor collision. Driver sustained bruising. Vehicle front bumper damaged. 50 cases of product damaged.", date: "2026-03-17", status: "Insurance Claim Filed" }
+  ],
+  decisions: [
+    { text: "Approved emergency procurement of CPP Resin from Turkish supplier Plastikoglu at 15% premium above contract rate", by: "CEO - Abdulrahman Al-Fadley", date: "2026-03-22" },
+    { text: "Diverted all Gulf-route shipments to Jeddah Islamic Port until further notice. Additional logistics cost approved.", by: "CMT", date: "2026-03-20" },
+    { text: "Activated Business Continuity Plan BCP-SC-001 for supply chain disruption scenario", by: "Head of BC - Uthman AlMousaed", date: "2026-03-15" },
+    { text: "Changed crisis posture from Monitoring to Defensive based on escalation assessment", by: "CMT", date: "2026-03-19" }
+  ],
+  isoChecklist: [
+    { text: "Crisis classification level assigned", sub: "ISO 22361 Clause 6.2", checked: true },
+    { text: "Crisis Management Team (CMT) activated", sub: "ISO 22361 Clause 6.3", checked: true },
+    { text: "Communication protocol established", sub: "ISO 22361 Clause 7.1", checked: true },
+    { text: "Escalation triggers defined and documented", sub: "ISO 22361 Clause 6.4", checked: true },
+    { text: "Stakeholder mapping completed", sub: "ISO 22361 Clause 7.2", checked: true },
+    { text: "Resource requirements identified", sub: "ISO 22361 Clause 8.1", checked: false },
+    { text: "Recovery phase criteria established", sub: "ISO 22361 Clause 9.1", checked: false },
+    { text: "Post-incident review scheduled", sub: "ISO 22361 Clause 10.1", checked: false },
+    { text: "Documentation and evidence preserved", sub: "ISO 22361 Clause 10.2", checked: true },
+    { text: "Continuous improvement actions logged", sub: "ISO 22361 Clause 10.3", checked: false }
+  ],
+  gsnrcChecklist: [
+    { text: "GSNRC Crisis Desk notified", sub: "National Resilience Regulation Art. 12", checked: true },
+    { text: "Critical Infrastructure Protection status updated", sub: "CIP Framework Sec. 4.1", checked: true },
+    { text: "National resilience reporting form submitted", sub: "GSNRC Form NR-001", checked: true },
+    { text: "Business Continuity Plan activation confirmed to GSNRC", sub: "BCP Notification Req.", checked: true },
+    { text: "Supply chain impact assessment shared with GSNRC", sub: "SCI Assessment Protocol", checked: false },
+    { text: "Workforce safety report filed", sub: "Labor Ministry Coordination", checked: false },
+    { text: "Food security impact assessment submitted", sub: "SFDA Coordination", checked: false },
+    { text: "Recovery timeline communicated to GSNRC", sub: "NR Reporting Obligation", checked: false }
+  ]
+};
+
+// ===== UTILITY FUNCTIONS =====
+function daysBetween(d1, d2) {
+  var a = new Date(d1), b = new Date(d2);
+  return Math.floor((b - a) / 86400000);
+}
+
+function formatDate(d) {
+  var dt = new Date(d);
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return dt.getDate() + ' ' + months[dt.getMonth()] + ' ' + dt.getFullYear();
+}
+
+function today() { return '2026-03-23'; }
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2500);
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+// Close modal on overlay click
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('modal-overlay')) {
+    e.target.classList.remove('active');
+  }
+});
+
+// ===== RBAC UI FUNCTIONS =====
+function onRoleChange() {
+  var selector = document.getElementById('role-selector');
+  RBAC.currentRole = selector.value;
+  var roleInfo = RBAC.getCurrentRoleInfo();
+
+  // Update topbar user display
+  document.getElementById('topbar-user-name').textContent = roleInfo.person;
+  document.getElementById('topbar-user-role').textContent = roleInfo.name;
+  document.getElementById('topbar-avatar').textContent = roleInfo.initials;
+
+  // Show toast notification
+  showToast('Viewing as: ' + roleInfo.name + ' (' + roleInfo.person + ')');
+
+  // Refresh all RBAC-controlled UI
+  applyRBAC();
+}
+
+function applyRBAC() {
+  applyHubRBAC();
+  applySitrepRBAC();
+}
+
+function applyHubRBAC() {
+  // Activate New Crisis button
+  var btnActivate = document.getElementById('btn-activate-crisis');
+  if (btnActivate) {
+    if (RBAC.canActivateCrisis()) {
+      btnActivate.classList.remove('rbac-hidden');
+    } else {
+      btnActivate.classList.add('rbac-hidden');
+    }
+  }
+
+  // Resolve Crisis button
+  var btnResolve = document.getElementById('btn-resolve-crisis');
+  if (btnResolve) {
+    if (RBAC.canResolveCrisis()) {
+      btnResolve.classList.remove('rbac-hidden');
+    } else {
+      btnResolve.classList.add('rbac-hidden');
+    }
+  }
+}
+
+function applySitrepRBAC() {
+  var tabs = ['overview', 'materials', 'shipping', 'actions', 'debris', 'people', 'governance', 'presentation'];
+
+  tabs.forEach(function(tabId) {
+    var canEdit = RBAC.canEdit(tabId);
+    var assignment = RBAC.tabAssignments[tabId];
+
+    // Render access banner
+    var bannerEl = document.getElementById('rbac-banner-' + tabId);
+    if (bannerEl) {
+      if (canEdit) {
+        bannerEl.innerHTML = '<div class="rbac-access-bar can-edit">' +
+          '<span style="font-size:1rem">&#10003;</span> Edit Access &mdash; You have edit access to this section</div>';
+      } else {
+        bannerEl.innerHTML = '<div class="rbac-access-bar read-only">' +
+          '<span style="font-size:1rem">&#128274;</span> View Only &mdash; You do not have edit access to this section</div>';
+      }
+    }
+
+    // Render assigned function banner
+    var assignedEl = document.getElementById('rbac-assigned-' + tabId);
+    if (assignedEl && assignment) {
+      var badgeClass = canEdit ? 'can-edit' : 'read-only';
+      var badgeText = canEdit ? 'Edit Access' : 'View Only';
+      assignedEl.innerHTML = '<div class="assigned-function-banner">' +
+        '<div class="af-avatar">' + assignment.initials + '</div>' +
+        '<div class="af-info">' +
+          '<div class="af-name">' + assignment.person + '</div>' +
+          '<div class="af-role">' + assignment.role + (assignment.email ? ' &middot; ' + assignment.email : '') + '</div>' +
+        '</div>' +
+        '<span class="af-badge ' + badgeClass + '">' + badgeText + '</span>' +
+      '</div>';
+    }
+
+    // Toggle edit controls visibility per tab
+    var editBtns = document.querySelectorAll('.rbac-edit-' + tabId);
+    editBtns.forEach(function(btn) {
+      if (canEdit) {
+        btn.classList.remove('rbac-hidden');
+      } else {
+        btn.classList.add('rbac-hidden');
+      }
+    });
+  });
+
+  // Executive summary textarea
+  var execSummary = document.getElementById('exec-summary');
+  if (execSummary) {
+    if (RBAC.canEdit('overview')) {
+      execSummary.removeAttribute('disabled');
+      execSummary.style.opacity = '1';
+      execSummary.style.cursor = 'text';
+    } else {
+      execSummary.setAttribute('disabled', 'disabled');
+      execSummary.style.opacity = '0.8';
+      execSummary.style.cursor = 'not-allowed';
+    }
+  }
+
+  // Governance checklists - disable checkboxes if not editable
+  var govCheckboxes = document.querySelectorAll('#iso-checklist input[type="checkbox"], #gsnrc-checklist input[type="checkbox"]');
+  govCheckboxes.forEach(function(cb) {
+    if (RBAC.canEdit('governance')) {
+      cb.removeAttribute('disabled');
+    } else {
+      cb.setAttribute('disabled', 'disabled');
+    }
+  });
+}
+
+// ===== NAVIGATION =====
+function goToHub() {
+  document.getElementById('screen-sitrep').classList.remove('active');
+  document.getElementById('screen-hub').classList.add('active');
+  applyHubRBAC();
+}
+
+function openCrisis(crisisId) {
+  var crisis = APP.activeCrises.find(function(c){ return c.id === crisisId; });
+  if (!crisis) {
+    crisis = APP.archivedCrises.find(function(c){ return c.id === crisisId; });
+  }
+  if (!crisis) return;
+
+  var days = daysBetween(crisis.activatedDate, today()) + 1;
+  var sevClass = 'badge-' + crisis.severity.toLowerCase();
+
+  // Sidebar
+  document.getElementById('sidebar-crisis-name').textContent = crisis.name;
+  document.getElementById('sidebar-severity').innerHTML = '<span class="badge ' + sevClass + '">' + crisis.severity + '</span>';
+  document.getElementById('sidebar-posture').textContent = crisis.posture;
+  document.getElementById('sidebar-activated').textContent = formatDate(crisis.activatedDate);
+  document.getElementById('sidebar-day').textContent = 'Day ' + days;
+  document.getElementById('sidebar-cycle').textContent = crisis.reportingCycle;
+  document.getElementById('sidebar-iso-level').textContent = crisis.isoLevel;
+
+  // Header
+  document.getElementById('header-crisis-name').textContent = crisis.name;
+  var hBadge = document.getElementById('header-severity-badge');
+  hBadge.textContent = crisis.severity;
+  hBadge.className = 'badge ' + sevClass;
+  document.getElementById('header-posture-badge').textContent = crisis.posture;
+  document.getElementById('header-day-badge').textContent = 'Day ' + days;
+  document.getElementById('header-cycle').textContent = crisis.reportingCycle + ' Reporting';
+
+  // Switch screen
+  document.getElementById('screen-hub').classList.remove('active');
+  document.getElementById('screen-sitrep').classList.add('active');
+
+  // Reset to overview tab
+  switchTab('overview');
+
+  // Render all tab data
+  renderMaterials();
+  renderShipments();
+  renderActions();
+  renderDebris();
+  renderISOChecklist();
+  renderGSNRCChecklist();
+  renderDecisions();
+
+  // Apply RBAC after rendering
+  applySitrepRBAC();
+}
+
+// ===== TAB SWITCHING =====
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-nav button').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.tab-pane').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelector('.tab-nav button[data-tab="' + tabId + '"]').classList.add('active');
+  document.getElementById('tab-' + tabId).classList.add('active');
+
+  if (tabId === 'presentation') renderPresentation();
+
+  // Re-apply RBAC for the active tab
+  applySitrepRBAC();
+}
+
+document.getElementById('tab-nav').addEventListener('click', function(e) {
+  if (e.target.tagName === 'BUTTON' && e.target.dataset.tab) {
+    switchTab(e.target.dataset.tab);
+  }
+});
+
+// ===== RENDER CRISIS HUB =====
+function renderHub() {
+  var grid = document.getElementById('active-crises-grid');
+  grid.innerHTML = '';
+  APP.activeCrises.forEach(function(c) {
+    var days = daysBetween(c.activatedDate, today()) + 1;
+    var card = document.createElement('div');
+    card.className = 'crisis-card severity-' + c.severity.toLowerCase();
+    card.onclick = function(){ openCrisis(c.id); };
+    card.innerHTML =
+      '<div class="day-count">Day ' + days + '</div>' +
+      '<h3>' + c.name + '</h3>' +
+      '<div class="card-meta">' +
+        '<span class="badge badge-' + c.severity.toLowerCase() + '">' + c.severity + '</span>' +
+        '<span class="badge badge-posture">' + c.posture + '</span>' +
+      '</div>' +
+      '<p style="font-size:.82rem;color:var(--gray-500);line-height:1.4">' + c.description.substring(0, 120) + '...</p>' +
+      '<div class="card-stats">' +
+        '<div class="stat"><div class="stat-val">' + (c.materials||0) + '</div><div class="stat-label">Materials</div></div>' +
+        '<div class="stat"><div class="stat-val">' + (c.criticalItems||0) + '</div><div class="stat-label">Critical</div></div>' +
+        '<div class="stat"><div class="stat-val">' + (c.shipments||0) + '</div><div class="stat-label">Shipments</div></div>' +
+        '<div class="stat"><div class="stat-val">' + (c.actions||0) + '</div><div class="stat-label">Actions</div></div>' +
+      '</div>';
+    grid.appendChild(card);
+  });
+
+  // Archived
+  var list = document.getElementById('archived-list');
+  list.innerHTML = '';
+  document.getElementById('archive-count').textContent = APP.archivedCrises.length;
+  APP.archivedCrises.forEach(function(c) {
+    var item = document.createElement('div');
+    item.className = 'archived-item';
+    item.onclick = function(){ openCrisis(c.id); };
+    var capaClass = c.capaStatus === 'Complete' ? 'capa-complete' : 'capa-pending';
+    item.innerHTML =
+      '<div class="info"><h4>' + c.name + '</h4><p>Activated: ' + formatDate(c.activatedDate) + ' | Resolved: ' + formatDate(c.resolvedDate) + '</p></div>' +
+      '<span class="capa-badge ' + capaClass + '">CAPA: ' + c.capaStatus + '</span>';
+    list.appendChild(item);
+  });
+
+  applyHubRBAC();
+}
+
+function toggleArchived() {
+  var list = document.getElementById('archived-list');
+  var chevron = document.getElementById('archive-chevron');
+  list.classList.toggle('open');
+  chevron.classList.toggle('open');
+}
+
+// ===== RENDER MATERIALS =====
+function renderMaterials() {
+  var tbody = document.getElementById('materials-tbody');
+  tbody.innerHTML = '';
+  var buFilter = document.getElementById('filter-bu').value;
+  var heatFilter = document.getElementById('filter-heat').value;
+  var canEdit = RBAC.canEdit('materials');
+  APP.materials.forEach(function(m) {
+    if (buFilter && m.bu !== buFilter) return;
+    if (heatFilter && m.heat !== heatFilter) return;
+    var trendIcon = m.trend === 'up' ? '&#9650;' : m.trend === 'down' ? '&#9660;' : '&#9644;';
+    var trendColor = m.trend === 'up' ? 'var(--heat-green)' : m.trend === 'down' ? 'var(--red)' : 'var(--gray-400)';
+    var tr = document.createElement('tr');
+    if (canEdit) {
+      tr.innerHTML =
+        '<td><strong>' + m.name + '</strong></td>' +
+        '<td>' + m.bu + '</td>' +
+        '<td class="editable heat-' + m.heat + '" onclick="editCoverage(this, \'' + m.name + '\')">' + m.coverageWeeks + 'w</td>' +
+        '<td>' + m.runoutWeek + '</td>' +
+        '<td class="heat-' + m.heat + '"><span class="heat-indicator" style="background:var(--' + (m.heat === 'green' ? 'heat-green' : m.heat) + ')"></span>' + m.heat.charAt(0).toUpperCase() + m.heat.slice(1) + '</td>' +
+        '<td style="color:' + trendColor + ';font-size:1.1rem">' + trendIcon + '</td>' +
+        '<td style="font-size:.8rem;color:var(--gray-500)">' + m.notes + '</td>';
+    } else {
+      tr.innerHTML =
+        '<td><strong>' + m.name + '</strong></td>' +
+        '<td>' + m.bu + '</td>' +
+        '<td class="heat-' + m.heat + '">' + m.coverageWeeks + 'w</td>' +
+        '<td>' + m.runoutWeek + '</td>' +
+        '<td class="heat-' + m.heat + '"><span class="heat-indicator" style="background:var(--' + (m.heat === 'green' ? 'heat-green' : m.heat) + ')"></span>' + m.heat.charAt(0).toUpperCase() + m.heat.slice(1) + '</td>' +
+        '<td style="color:' + trendColor + ';font-size:1.1rem">' + trendIcon + '</td>' +
+        '<td style="font-size:.8rem;color:var(--gray-500)">' + m.notes + '</td>';
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+function filterMaterials() { renderMaterials(); }
+
+function editCoverage(td, materialName) {
+  if (!RBAC.canEdit('materials')) return;
+  if (td.querySelector('input')) return;
+  var mat = APP.materials.find(function(m){ return m.name === materialName; });
+  var oldVal = mat.coverageWeeks;
+  td.innerHTML = '<input type="number" value="' + oldVal + '" min="0" max="52">';
+  var inp = td.querySelector('input');
+  inp.focus();
+  inp.select();
+  function save() {
+    var nv = parseInt(inp.value) || oldVal;
+    mat.coverageWeeks = nv;
+    if (nv <= 4) mat.heat = 'red';
+    else if (nv <= 8) mat.heat = 'orange';
+    else if (nv <= 12) mat.heat = 'amber';
+    else mat.heat = 'green';
+    renderMaterials();
+    showToast(materialName + ' updated to ' + nv + ' weeks');
+  }
+  inp.addEventListener('blur', save);
+  inp.addEventListener('keydown', function(e){ if(e.key==='Enter') save(); });
+}
+
+// ===== RENDER SHIPMENTS =====
+function renderShipments() {
+  var tbody = document.getElementById('shipping-tbody');
+  tbody.innerHTML = '';
+  APP.shipments.forEach(function(s) {
+    var statusClass = s.status === 'In Transit' ? 'status-in-transit' : s.status === 'Loading' ? 'status-loading' : s.status === 'Delivered' ? 'status-delivered' : 'status-in-progress';
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><strong>' + s.id + '</strong></td>' +
+      '<td>' + s.name + '</td>' +
+      '<td>' + s.origin + '</td>' +
+      '<td>' + s.destination + '</td>' +
+      '<td>' + formatDate(s.eta) + '</td>' +
+      '<td><span class="status-pill ' + statusClass + '">' + s.status + '</span></td>' +
+      '<td>' + s.cost + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+// ===== RENDER ACTIONS =====
+function renderActions() {
+  var tbody = document.getElementById('actions-tbody');
+  tbody.innerHTML = '';
+  var statusFilter = document.getElementById('filter-action-status').value;
+  APP.actions.forEach(function(a) {
+    if (statusFilter && a.status !== statusFilter) return;
+    var isOverdue = a.due < today() && a.status !== 'Complete';
+    var isDueToday = a.due === today() && a.status !== 'Complete';
+    var rowClass = isOverdue ? 'overdue' : isDueToday ? 'due-today' : '';
+    var prClass = 'priority-' + a.priority.toLowerCase();
+    var stClass = a.status === 'Complete' ? 'status-complete' : a.status === 'In Progress' ? 'status-in-progress' : a.status === 'Delayed' ? 'status-delayed' : 'status-not-started';
+    var barColor = a.pct >= 80 ? 'var(--heat-green)' : a.pct >= 40 ? 'var(--amber)' : 'var(--red)';
+    var tr = document.createElement('tr');
+    tr.className = rowClass;
+    tr.innerHTML =
+      '<td>' + a.desc + (isOverdue ? ' <span style="color:var(--red);font-size:.7rem;font-weight:700">OVERDUE</span>' : '') + (isDueToday ? ' <span style="color:var(--orange);font-size:.7rem;font-weight:700">DUE TODAY</span>' : '') + '</td>' +
+      '<td>' + a.assignee + '</td>' +
+      '<td class="' + prClass + '">' + a.priority + '</td>' +
+      '<td>' + formatDate(a.due) + '</td>' +
+      '<td><span class="status-pill ' + stClass + '">' + a.status + '</span></td>' +
+      '<td><div class="progress-bar"><div class="fill" style="width:' + a.pct + '%;background:' + barColor + '"></div></div> ' + a.pct + '%</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function filterActions() { renderActions(); }
+
+// ===== RENDER DEBRIS =====
+function renderDebris() {
+  var tbody = document.getElementById('debris-tbody');
+  tbody.innerHTML = '';
+  APP.debris.forEach(function(d) {
+    var stClass = d.status === 'Resolved' ? 'status-complete' : d.status === 'Under Investigation' ? 'status-in-progress' : 'status-at-risk';
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><strong>' + d.name + '</strong></td>' +
+      '<td>' + d.location + '</td>' +
+      '<td>' + d.injuries + '</td>' +
+      '<td style="font-size:.82rem;max-width:300px">' + d.damage + '</td>' +
+      '<td>' + formatDate(d.date) + '</td>' +
+      '<td><span class="status-pill ' + stClass + '">' + d.status + '</span></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+// ===== RENDER CHECKLISTS =====
+function renderISOChecklist() {
+  var ul = document.getElementById('iso-checklist');
+  ul.innerHTML = '';
+  var canEdit = RBAC.canEdit('governance');
+  APP.isoChecklist.forEach(function(item, idx) {
+    var li = document.createElement('li');
+    li.innerHTML = '<input type="checkbox" ' + (item.checked ? 'checked' : '') + ' ' + (!canEdit ? 'disabled' : '') + ' onchange="APP.isoChecklist[' + idx + '].checked=this.checked">' +
+      '<div class="check-label">' + item.text + '<small>' + item.sub + '</small></div>';
+    ul.appendChild(li);
+  });
+}
+
+function renderGSNRCChecklist() {
+  var ul = document.getElementById('gsnrc-checklist');
+  ul.innerHTML = '';
+  var canEdit = RBAC.canEdit('governance');
+  APP.gsnrcChecklist.forEach(function(item, idx) {
+    var li = document.createElement('li');
+    li.innerHTML = '<input type="checkbox" ' + (item.checked ? 'checked' : '') + ' ' + (!canEdit ? 'disabled' : '') + ' onchange="APP.gsnrcChecklist[' + idx + '].checked=this.checked">' +
+      '<div class="check-label">' + item.text + '<small>' + item.sub + '</small></div>';
+    ul.appendChild(li);
+  });
+}
+
+// ===== RENDER DECISIONS =====
+function renderDecisions() {
+  var log = document.getElementById('decision-log');
+  log.innerHTML = '';
+  APP.decisions.forEach(function(d) {
+    var div = document.createElement('div');
+    div.className = 'decision-item';
+    div.innerHTML =
+      '<div class="decision-date">' + formatDate(d.date) + '</div>' +
+      '<div class="decision-text">' + d.text + '</div>' +
+      '<div class="decision-by">Decided by: ' + d.by + '</div>';
+    log.appendChild(div);
+  });
+}
+
+// ===== RENDER PRESENTATION MODE =====
+function renderPresentation() {
+  var container = document.getElementById('presentation-content');
+  var crisis = APP.activeCrises[0] || APP.archivedCrises[0];
+  if (!crisis) return;
+  var days = daysBetween(crisis.activatedDate, today()) + 1;
+  var summary = document.getElementById('exec-summary').value;
+
+  var html = '';
+
+  // Title
+  html += '<div class="presentation-section">' +
+    '<h2 style="text-align:center;border-bottom:none;font-size:1.5rem">' + crisis.name + '</h2>' +
+    '<div style="text-align:center;margin-top:12px">' +
+      '<span class="badge badge-' + crisis.severity.toLowerCase() + '" style="font-size:.85rem;padding:6px 16px">' + crisis.severity + ' Severity</span> ' +
+      '<span class="badge badge-posture" style="font-size:.85rem;padding:6px 16px">' + crisis.posture + ' Posture</span> ' +
+      '<span class="day-badge" style="font-size:.85rem;padding:6px 16px;display:inline-block;margin-top:8px">Day ' + days + '</span>' +
+    '</div>' +
+    '<p style="text-align:center;margin-top:16px;color:var(--gray-500)">SitRep Date: ' + formatDate(today()) + ' | Prepared by: Uthman AlMousaed | Classification: CONFIDENTIAL</p>' +
+  '</div>';
+
+  // Executive Summary
+  html += '<div class="presentation-section"><h2>Executive Summary</h2><p style="white-space:pre-wrap;line-height:1.7;font-size:.9rem">' + summary + '</p></div>';
+
+  // Key Metrics
+  html += '<div class="presentation-section"><h2>Key Metrics</h2><div class="metrics-row">' +
+    '<div class="metric-card"><div class="metric-val">' + APP.materials.length + '</div><div class="metric-label">Materials Monitored</div></div>' +
+    '<div class="metric-card red"><div class="metric-val">' + APP.materials.filter(function(m){return m.heat==="red"}).length + '</div><div class="metric-label">Critical Items</div></div>' +
+    '<div class="metric-card"><div class="metric-val">' + APP.shipments.length + '</div><div class="metric-label">Active Shipments</div></div>' +
+    '<div class="metric-card orange"><div class="metric-val">' + APP.actions.filter(function(a){return a.status!=="Complete"}).length + '</div><div class="metric-label">Open Actions</div></div>' +
+    '<div class="metric-card"><div class="metric-val">' + APP.debris.length + '</div><div class="metric-label">Incidents</div></div>' +
+  '</div></div>';
+
+  // Materials
+  html += '<div class="presentation-section"><h2>Materials &amp; Supply Heat Map</h2><table class="heat-table"><thead><tr><th>Material</th><th>BU</th><th>Coverage</th><th>Run-out</th><th>Status</th></tr></thead><tbody>';
+  APP.materials.forEach(function(m) {
+    html += '<tr><td><strong>' + m.name + '</strong></td><td>' + m.bu + '</td><td class="heat-' + m.heat + '">' + m.coverageWeeks + ' weeks</td><td>' + m.runoutWeek + '</td><td class="heat-' + m.heat + '">' + m.heat.charAt(0).toUpperCase() + m.heat.slice(1) + '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+
+  // Shipments
+  html += '<div class="presentation-section"><h2>Shipment Status</h2><table><thead><tr><th>ID</th><th>Name</th><th>Route</th><th>ETA</th><th>Status</th><th>Cost</th></tr></thead><tbody>';
+  APP.shipments.forEach(function(s) {
+    html += '<tr><td>' + s.id + '</td><td>' + s.name + '</td><td>' + s.origin + ' &rarr; ' + s.destination + '</td><td>' + formatDate(s.eta) + '</td><td>' + s.status + '</td><td>' + s.cost + '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+
+  // Actions
+  html += '<div class="presentation-section"><h2>Action Items</h2><table><thead><tr><th>Action</th><th>Owner</th><th>Priority</th><th>Due</th><th>Status</th><th>Progress</th></tr></thead><tbody>';
+  APP.actions.forEach(function(a) {
+    html += '<tr><td>' + a.desc + '</td><td>' + a.assignee + '</td><td class="priority-' + a.priority.toLowerCase() + '">' + a.priority + '</td><td>' + formatDate(a.due) + '</td><td>' + a.status + '</td><td>' + a.pct + '%</td></tr>';
+  });
+  html += '</tbody></table></div>';
+
+  // Incidents
+  html += '<div class="presentation-section"><h2>Debris &amp; Incidents</h2><table><thead><tr><th>Incident</th><th>Location</th><th>Injuries</th><th>Date</th><th>Status</th></tr></thead><tbody>';
+  APP.debris.forEach(function(d) {
+    html += '<tr><td>' + d.name + '</td><td>' + d.location + '</td><td>' + d.injuries + '</td><td>' + formatDate(d.date) + '</td><td>' + d.status + '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+
+  // Governance
+  var isoComplete = APP.isoChecklist.filter(function(i){return i.checked}).length;
+  var gsnrcComplete = APP.gsnrcChecklist.filter(function(i){return i.checked}).length;
+  html += '<div class="presentation-section"><h2>Governance Compliance</h2>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">' +
+    '<div><h3 style="font-size:.95rem;margin-bottom:12px">ISO 22361: ' + isoComplete + '/' + APP.isoChecklist.length + ' Complete</h3>' +
+    '<div class="progress-bar" style="width:100%;height:12px"><div class="fill" style="width:' + (isoComplete/APP.isoChecklist.length*100) + '%;background:var(--navy)"></div></div></div>' +
+    '<div><h3 style="font-size:.95rem;margin-bottom:12px">GSNRC: ' + gsnrcComplete + '/' + APP.gsnrcChecklist.length + ' Complete</h3>' +
+    '<div class="progress-bar" style="width:100%;height:12px"><div class="fill" style="width:' + (gsnrcComplete/APP.gsnrcChecklist.length*100) + '%;background:var(--green)"></div></div></div>' +
+    '</div></div>';
+
+  container.innerHTML = html;
+}
+
+// ===== ADD FUNCTIONS =====
+function activateNewCrisis() {
+  if (!RBAC.canActivateCrisis()) { showToast('Access denied: Only Admin and CCMT Leader can activate crises'); return; }
+  var name = document.getElementById('new-crisis-name').value.trim();
+  if (!name) { showToast('Please enter a crisis name'); return; }
+  var id = Date.now();
+  APP.activeCrises.push({
+    id: id,
+    name: name,
+    description: document.getElementById('new-crisis-desc').value || 'No description provided',
+    severity: document.getElementById('new-crisis-severity').value,
+    posture: document.getElementById('new-crisis-posture').value,
+    activatedDate: document.getElementById('new-crisis-date').value,
+    reportingCycle: document.getElementById('new-crisis-cycle').value,
+    isoLevel: 'Level ' + ({Critical:'4',High:'3',Medium:'2',Low:'1'}[document.getElementById('new-crisis-severity').value]),
+    materials: 0, criticalItems: 0, shipments: 0, actions: 0, debris: 0
+  });
+  renderHub();
+  closeModal('modal-new-crisis');
+  showToast('CRISIS ACTIVATED: ' + name);
+  // Reset form
+  document.getElementById('new-crisis-name').value = '';
+  document.getElementById('new-crisis-desc').value = '';
+}
+
+function resolveCrisis() {
+  if (!RBAC.canResolveCrisis()) { showToast('Access denied: Only Admin and CCMT Leader can resolve crises'); return; }
+  var summary = document.getElementById('resolve-summary').value.trim();
+  if (!summary) { showToast('Please enter a resolution summary'); return; }
+  var crisis = APP.activeCrises[0];
+  if (!crisis) return;
+  crisis.resolvedDate = document.getElementById('resolve-date').value;
+  crisis.capaStatus = 'Pending';
+  APP.archivedCrises.unshift(crisis);
+  APP.activeCrises.splice(0, 1);
+  closeModal('modal-resolve');
+  goToHub();
+  renderHub();
+  showToast('Crisis archived. CAPA initiated.');
+}
+
+function addShipment() {
+  if (!RBAC.canEdit('shipping')) { showToast('Access denied: You do not have edit access to Shipping'); return; }
+  var name = document.getElementById('ship-name').value.trim();
+  if (!name) { showToast('Please enter a shipment name'); return; }
+  APP.shipments.push({
+    id: 'ALM-2026-' + (44 + APP.shipments.length).toString().padStart(3, '0'),
+    name: name,
+    origin: document.getElementById('ship-origin').value || 'TBD',
+    destination: document.getElementById('ship-dest').value || 'TBD',
+    eta: document.getElementById('ship-eta').value || today(),
+    status: document.getElementById('ship-status').value,
+    cost: 'SAR ' + (document.getElementById('ship-cost').value || '0')
+  });
+  renderShipments();
+  closeModal('modal-add-shipment');
+  showToast('Shipment added');
+  document.getElementById('ship-name').value = '';
+  document.getElementById('ship-origin').value = '';
+  document.getElementById('ship-dest').value = '';
+  document.getElementById('ship-cost').value = '';
+}
+
+function addAction() {
+  if (!RBAC.canEdit('actions')) { showToast('Access denied: You do not have edit access to Actions'); return; }
+  var desc = document.getElementById('action-desc').value.trim();
+  if (!desc) { showToast('Please enter an action description'); return; }
+  APP.actions.push({
+    desc: desc,
+    assignee: document.getElementById('action-assignee').value || 'Unassigned',
+    priority: document.getElementById('action-priority').value,
+    due: document.getElementById('action-due').value || today(),
+    status: document.getElementById('action-status').value,
+    pct: 0
+  });
+  renderActions();
+  closeModal('modal-add-action');
+  showToast('Action added');
+  document.getElementById('action-desc').value = '';
+  document.getElementById('action-assignee').value = '';
+}
+
+function addDebris() {
+  if (!RBAC.canEdit('debris')) { showToast('Access denied: You do not have edit access to Debris'); return; }
+  var name = document.getElementById('debris-name').value.trim();
+  if (!name) { showToast('Please enter an incident name'); return; }
+  APP.debris.push({
+    name: name,
+    location: document.getElementById('debris-location').value || 'TBD',
+    injuries: document.getElementById('debris-injuries').value,
+    damage: document.getElementById('debris-damage').value || 'No description',
+    date: document.getElementById('debris-date').value || today(),
+    status: 'Under Investigation'
+  });
+  renderDebris();
+  closeModal('modal-add-debris');
+  showToast('Incident logged');
+  document.getElementById('debris-name').value = '';
+  document.getElementById('debris-location').value = '';
+  document.getElementById('debris-damage').value = '';
+}
+
+function addDecision() {
+  if (!RBAC.canEdit('governance')) { showToast('Access denied: You do not have edit access to Governance'); return; }
+  var text = document.getElementById('decision-text').value.trim();
+  if (!text) { showToast('Please enter a decision'); return; }
+  APP.decisions.unshift({
+    text: text,
+    by: document.getElementById('decision-by').value || 'CMT',
+    date: today()
+  });
+  renderDecisions();
+  closeModal('modal-add-decision');
+  showToast('Decision logged');
+  document.getElementById('decision-text').value = '';
+  document.getElementById('decision-by').value = '';
+}
+
+// ===== TABLE SORTING =====
+function sortTable(tableId, colIdx) {
+  var table = document.getElementById(tableId);
+  var tbody = table.querySelector('tbody');
+  var rows = Array.from(tbody.querySelectorAll('tr'));
+  var asc = table.dataset.sortDir !== 'asc';
+  table.dataset.sortDir = asc ? 'asc' : 'desc';
+  rows.sort(function(a, b) {
+    var av = a.cells[colIdx].textContent.trim();
+    var bv = b.cells[colIdx].textContent.trim();
+    // Try date parse
+    var da = Date.parse(av), db = Date.parse(bv);
+    if (!isNaN(da) && !isNaN(db)) return asc ? da - db : db - da;
+    // Try number
+    var na = parseFloat(av), nb = parseFloat(bv);
+    if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+    // String
+    return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+  rows.forEach(function(r){ tbody.appendChild(r); });
+}
+
+// ===== COUNTDOWN TIMER =====
+function updateCountdown() {
+  // Next report: 24 March 2026 08:00 AST (UTC+3)
+  var target = new Date('2026-03-24T05:00:00Z'); // 08:00 AST = 05:00 UTC
+  var now = new Date();
+  // For demo, use a simulated "now" based on 23 March 2026 midday
+  var simNow = new Date('2026-03-23T09:00:00Z');
+  var diff = target - simNow;
+  // Make it tick by using real seconds offset
+  var realElapsed = now.getTime() % 86400000;
+  diff = Math.max(0, diff - (realElapsed % 60000));
+
+  var hours = Math.floor(diff / 3600000);
+  var mins = Math.floor((diff % 3600000) / 60000);
+  var secs = Math.floor((diff % 60000) / 1000);
+
+  // Use real clock seconds for ticking effect
+  secs = 59 - (now.getSeconds());
+  mins = Math.max(0, mins - 1 + (secs === 59 ? 1 : 0));
+
+  document.getElementById('cd-hours').textContent = hours.toString().padStart(2, '0');
+  document.getElementById('cd-mins').textContent = mins.toString().padStart(2, '0');
+  document.getElementById('cd-secs').textContent = secs.toString().padStart(2, '0');
+}
+
+setInterval(updateCountdown, 1000);
+updateCountdown();
+
+// ===== INIT =====
+renderHub();
+applyRBAC();
+</script>
+</body>
+</html>
