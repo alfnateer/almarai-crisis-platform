@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BCM Implementation Toolkit</title>
+<meta name="description" content="Online version of the BCM Implementation Toolkit v6.4 (ISO 22301). Fill every sheet in the browser and export a populated copy of the Excel workbook.">
+<link rel="stylesheet" href="css/toolkit.css">
+</head>
+<body>
+<header class="topbar">
+  <button class="icon-btn menu-btn" data-action="menu" aria-label="Open menu">&#9776;</button>
+  <a class="brand" href="#dash">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="#00A651"/><path d="M9 17l4.5 4.5L23 11" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span><b>BCM Implementation Toolkit</b><small>Almarai Business Continuity &amp; Crisis Management &middot; ISO 22301</small></span>
+  </a>
+  <div class="top-actions">
+    <span class="save-status" id="save-status"></span>
+    <button class="btn light" data-action="import" title="Load data from a filled toolkit workbook (.xlsx)">Import Excel</button>
+    <button class="btn accent" data-action="export" title="Download the toolkit workbook populated with your data">Export to Excel</button>
+    <details class="more">
+      <summary class="btn light" title="More">&#8943;</summary>
+      <div class="more-menu">
+        <button data-action="backup">Download backup (.json)</button>
+        <button data-action="restore">Restore backup (.json)</button>
+        <button data-action="template">Download blank template (.xlsx)</button>
+        <a href="../index.html">Crisis Management Platform</a>
+        <button data-action="reset" class="danger">Clear all data&hellip;</button>
+      </div>
+    </details>
+  </div>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="nav" aria-label="Toolkit sheets"></nav>
+  <button class="scrim" data-action="menu" aria-label="Close menu"></button>
+  <main id="main"><div id="page"></div>
+    <footer class="foot">Data stays in this browser until you export it. Exported workbooks are recalculated by Excel on open. CONFIDENTIAL - reveals critical organisational infrastructure.</footer>
+  </main>
+</div>
+<datalist id="active-list"></datalist>
+<input type="file" id="file-input" hidden>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="vendor/jszip.min.js"></script>
+<script src="js/template-data.js"></script>
+<script src="js/template.js"></script>
+<script src="js/schema.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/xlsx-io.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
