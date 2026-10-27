@@ -12,7 +12,7 @@
   var EN = window.BCM_ENGINE;
   var IO = window.BCM_XLSX;
   var S = SC.S;
-  var STORE_KEY = 'almarai-bcm-toolkit-v6.4';
+  var STORE_KEY = 'almarai-bcm-toolkit-v0.2';
 
   var INPUTS = SC.inputCells(T);
   var SPEC = {};
@@ -100,7 +100,7 @@
     return String(v);
   }
   var RED = ['Critical', 'Overdue', 'Red - Action Required', 'DUPLICATE', 'Failed', 'GAP - no DR', 'Missing', 'No', 'Incomplete',
-    'RTO Not Complied', 'RPO Not Complied', 'Test Overdue', 'Retest Required', 'Recovery Not Compliant', 'Not Evidenced', 'Ineffective', '#VALUE!', '#N/A'];
+    'RTO Not Complied', 'RPO Not Complied', 'Test Overdue', 'Retest Required', 'Recovery Not Compliant', 'Not Evidenced', 'Ineffective', '#VALUE!', '#N/A', '#REF!'];
   var AMBER = ['Significant', 'Partial', 'Amber - Attention', 'In Progress', 'Incomplete Exercise', 'Result Required', 'Pass with Findings',
     'Not Tested', 'Recovery Targets Incomplete', 'Review Date Missing', 'Due \u226430 Days', 'Moderate', 'Planned', 'Scheduled', 'Not Scheduled', 'Under Evaluation'];
   var GREEN = ['Low', 'Yes', 'Complete', 'Completed', 'Passed', 'OK', 'On Track', 'Green - On Track', 'Tested & Current', 'RTO Complied',
@@ -241,6 +241,8 @@
   function renderNav() {
     var groups = [], seen = {};
     SC.sheets.forEach(function (d) { if (!seen[d.group]) { seen[d.group] = 1; groups.push(d.group); } });
+    // Sheets hidden in the workbook are listed last.
+    groups.sort(function (x, y) { return (/^Hidden/.test(x) ? 1 : 0) - (/^Hidden/.test(y) ? 1 : 0); });
     var html = '';
     groups.forEach(function (g) {
       html += '<div class="nav-group">' + esc(g) + '</div>';
@@ -361,7 +363,13 @@
     for (var q = def.first; q <= want; q++) rows.push(q);
     return rows;
   }
-  function headerRows(cols, extraFirst) {
+  // The workbook's cell notes on a column header (guidance for that column).
+  function noteFor(sheet, col, beforeRow) {
+    var notes = (T.comments || {})[sheet] || {}, best = '';
+    for (var r = 1; r < beforeRow; r++) if (notes[col + r]) best = notes[col + r];
+    return best;
+  }
+  function headerRows(cols, extraFirst, sheet, firstRow) {
     var hasGroups = cols.some(function (c) { return c.group; });
     var top = '', bottom = '';
     if (hasGroups) {
@@ -377,7 +385,10 @@
     }
     bottom = '<tr>' + (extraFirst ? '<th class="num">#</th>' : '');
     cols.forEach(function (c) {
-      bottom += '<th style="min-width:' + (c.w || 120) + 'px"' + (c.auto ? ' class="auto-h" title="Automatic (formula)"' : '') + '>' + esc(c.label) + '</th>';
+      var note = sheet ? noteFor(sheet, c.c, firstRow) : '';
+      var tip = (c.auto ? 'Automatic (formula)' : '') + (note ? (c.auto ? ' - ' : '') + note : '');
+      bottom += '<th style="min-width:' + (c.w || 120) + 'px"' + (c.auto ? ' class="auto-h"' : '') + (tip ? ' title="' + esc(tip) + '"' : '') + '>' +
+        esc(c.label) + (note ? ' <span class="info">i</span>' : '') + '</th>';
     });
     bottom += '<th></th></tr>';
     return top + bottom;
@@ -386,7 +397,7 @@
     var rows = visibleRows(def);
     var html = pageHeader(def, legend());
     html += '<div class="card flush"><div class="table-wrap tall"><table class="sheet-table records" data-sheet="' + esc(def.id) + '"><thead>' +
-      headerRows(def.cols, !!def.numCol) + '</thead><tbody>';
+      headerRows(def.cols, !!def.numCol, def.sheet, def.first) + '</thead><tbody>';
     rows.forEach(function (r) {
       html += '<tr data-row="' + r + '">' + (def.numCol ? '<td class="num">' + esc(book.get(def.sheet, def.numCol + r)) + '</td>' : '');
       def.cols.forEach(function (c) {
@@ -406,7 +417,8 @@
     return html;
   }
   function legend() {
-    return '<div class="legend"><span><i class="sw white"></i>You fill these</span><span><i class="sw blue"></i>Automatic - calculated like the Excel formulas</span></div>';
+    return '<div class="legend"><span><i class="sw white"></i>You fill these</span><span><i class="sw blue"></i>Automatic - calculated like the Excel formulas</span>' +
+      '<span>Tip: copy a block of cells in Excel and paste it here with Ctrl+V - it fills across columns and rows</span></div>';
   }
 
   // ---- simple grids (06, 09)
@@ -505,7 +517,7 @@
     var sections = SC.isoSectionRows(T);
     var formulas = {};
     (T.formulas[def.sheet] || []).forEach(function (a) { formulas[a] = 1; });
-    var html = pageHeader(def, legend()) + '<div class="card flush"><div class="table-wrap tall"><table class="sheet-table"><thead>' + headerRows(def.cols, false) + '</thead><tbody>';
+    var html = pageHeader(def, legend()) + '<div class="card flush"><div class="table-wrap tall"><table class="sheet-table"><thead>' + headerRows(def.cols, false, def.sheet, def.rows.first) + '</thead><tbody>';
     for (var r = def.rows.first; r <= def.rows.last; r++) {
       if (sections[r]) { html += '<tr class="section-row"><td colspan="' + (def.cols.length + 1) + '">' + esc(sections[r]) + '</td></tr>'; continue; }
       html += '<tr>';
@@ -674,7 +686,8 @@
   function autosize(el) {
     if (el.tagName !== 'TEXTAREA') return;
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight + 2, 240) + 'px';
+    // Keep table rows compact; long text scrolls inside the box (forms allow taller boxes).
+    el.style.height = Math.min(el.scrollHeight + 2, el.closest('.sheet-table') ? 110 : 240) + 'px';
   }
   function autosizeAll(root) { root.querySelectorAll('textarea').forEach(autosize); }
 
@@ -747,6 +760,123 @@
     }
   }
 
+  // ------------------------------------------------------------------ paste from Excel
+  // Excel puts a block of cells on the clipboard as tab-separated text; cells holding
+  // tabs, line breaks or quotes are wrapped in quotes with "" escaping.
+  function parseClipboard(text) {
+    var rows = [], row = [], cell = '', i = 0, q = false;
+    text = text.replace(/\r\n?/g, '\n');
+    while (i < text.length) {
+      var ch = text[i];
+      if (q) {
+        if (ch === '"' && text[i + 1] === '"') { cell += '"'; i += 2; continue; }
+        if (ch === '"') { q = false; i++; continue; }
+        cell += ch; i++; continue;
+      }
+      if (ch === '"' && cell === '') { q = true; i++; continue; }
+      if (ch === '\t') { row.push(cell); cell = ''; i++; continue; }
+      if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; i++; continue; }
+      cell += ch; i++;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows;
+  }
+  var MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function isoDate(y, m, d) {
+    if (y < 100) y += 2000;
+    var dt = new Date(Date.UTC(y, m - 1, d));
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+    return y + '-' + pad2(m) + '-' + pad2(d);
+  }
+  // Dates as Excel copies them: 2026-01-15, 15/01/2026 (day first), 15-Jan-26, Jan 15 2026, or a serial number.
+  function parseDate(s) {
+    s = s.trim();
+    var m;
+    if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s))) return isoDate(+m[1], +m[2], +m[3]);
+    if ((m = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/.exec(s))) return isoDate(+m[3], +m[2], +m[1]);
+    if ((m = /^(\d{1,2})[\s\-\/]([A-Za-z]{3})[A-Za-z]*[\s\-\/,]+(\d{2,4})$/.exec(s)) && MONTHS[m[2].toLowerCase()]) return isoDate(+m[3], MONTHS[m[2].toLowerCase()], +m[1]);
+    if ((m = /^([A-Za-z]{3})[A-Za-z]*[\s\-]+(\d{1,2}),?\s+(\d{2,4})$/.exec(s)) && MONTHS[m[1].toLowerCase()]) return isoDate(+m[3], MONTHS[m[1].toLowerCase()], +m[2]);
+    if (/^\d{4,5}(\.\d+)?$/.test(s)) return IO.excelToIso(Math.floor(Number(s)));
+    return null;
+  }
+  // Fit a pasted text to the field: match dropdown options, parse dates and numbers.
+  function normalizeFor(el, raw) {
+    var v = raw.trim();
+    if (v === '') return { value: '' };
+    if (el.type === 'date') { var d = parseDate(v); return d ? { value: d } : { error: 'date' }; }
+    if (el.type === 'number') {
+      var n = Number(v.replace(/,/g, ''));
+      return isNaN(n) ? { error: 'number' } : { value: String(n) };
+    }
+    var opt = el.getAttribute('data-opt');
+    if (opt) {
+      var row = +el.getAttribute('data-row'), sheet = el.getAttribute('data-k').split('|')[0];
+      var opts = optionsFor(JSON.parse(opt), sheet, row);
+      for (var i = 0; i < opts.length; i++) if (String(opts[i]).toLowerCase() === v.toLowerCase()) return { value: String(opts[i]) };
+      if (/^\d+(\.0+)?$/.test(v)) for (var j = 0; j < opts.length; j++) if (String(opts[j]) === String(Number(v))) return { value: String(opts[j]) };
+      if (el.tagName === 'SELECT' && opts.length) return { value: v, offList: true };
+    }
+    return { value: el.tagName === 'TEXTAREA' ? raw.replace(/^\s+|\s+$/g, '') : v };
+  }
+  function onPaste(e) {
+    var el = e.target;
+    if (!el.getAttribute || !el.getAttribute('data-k')) return;
+    var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    if (!text) return;
+    var data = parseClipboard(text);
+    // A single value typed into a text box keeps the normal paste behaviour.
+    if (data.length === 1 && data[0].length === 1 && el.tagName !== 'SELECT' && el.type !== 'date') return;
+    var table = el.closest('table');
+    if (!table) return;
+    e.preventDefault();
+    var td = el.closest('td'), tr = el.closest('tr');
+    var cIdx = Array.prototype.indexOf.call(tr.children, td);
+    var def = SC.byId(current);
+    var startRow = tr.getAttribute('data-row');
+    // Record tables grow to fit the pasted block (within the workbook's capacity).
+    if (table.classList.contains('records') && startRow && !def.fixedRows) {
+      var needed = +startRow + data.length - def.first + 1;
+      if (needed > visibleRows(def).length) {
+        state.ui.rows[def.id] = Math.min(needed, def.last - def.first + 1);
+        var focusKey = el.getAttribute('data-k');
+        renderPage();
+        el = document.querySelector('[data-k="' + cssEsc(focusKey) + '"]');
+        table = el.closest('table'); td = el.closest('td'); tr = el.closest('tr');
+      }
+    }
+    var bodyRows = Array.prototype.filter.call(tr.parentNode.children, function (x) { return x.tagName === 'TR' && !x.classList.contains('section-row'); });
+    var rIdx = bodyRows.indexOf(tr);
+    var done = 0, skipped = 0, bad = 0, offList = 0, overflow = 0;
+    data.forEach(function (cells, i) {
+      var row = bodyRows[rIdx + i];
+      if (!row) { overflow += cells.length; return; }
+      cells.forEach(function (raw, j) {
+        var cell = row.children[cIdx + j];
+        var input = cell && cell.querySelector('[data-k]');
+        if (!input) { if (raw.trim() !== '') skipped++; return; }
+        var res = normalizeFor(input, raw);
+        if (res.error) { bad++; return; }
+        if (res.offList) offList++;
+        var p = input.getAttribute('data-k').split('|');
+        setValue(p[0], p[1], res.value);
+        done++;
+      });
+    });
+    calc = EN.compute(book, { tpl: T });
+    var y = window.scrollY;
+    renderPage();
+    window.scrollTo(0, y);
+    updateCounts();
+    var msg = 'Pasted ' + done + ' cell' + (done === 1 ? '' : 's');
+    var notes = [];
+    if (skipped) notes.push(skipped + ' on automatic/label columns skipped');
+    if (bad) notes.push(bad + ' not a valid date/number');
+    if (offList) notes.push(offList + ' not in the dropdown list (kept, marked "not in list")');
+    if (overflow) notes.push(overflow + ' beyond the last row of this sheet');
+    toast(msg + (notes.length ? ' - ' + notes.join('; ') : ''), bad || overflow ? 'err' : 'ok');
+  }
+
   // ------------------------------------------------------------------ actions
   function download(blob, name) {
     var a = document.createElement('a');
@@ -774,7 +904,7 @@
       try {
         var blob = await IO.exportWorkbook(window.BCM_TEMPLATE_B64, INPUTS, function (sheet, addr) { return book.get(sheet, addr); });
         var bu = fileSafe(book.get(S.BUP, 'B7') || book.get(S.BUP, 'B6'));
-        download(blob, 'BCM_Implementation_Toolkit_v6.4' + (bu ? '_' + bu : '') + '_' + stamp() + '.xlsx');
+        download(blob, 'Almarai_BCM_Toolkit_v0.2' + (bu ? '_' + bu : '') + '_' + stamp() + '.xlsx');
         toast('Exported. Excel recalculates all formulas when you open the file.', 'ok');
       } catch (err) {
         console.error(err);
@@ -854,6 +984,7 @@
     page.addEventListener('input', onInput);
     page.addEventListener('change', onInput);
     page.addEventListener('focusin', onFocus);
+    page.addEventListener('paste', onPaste);
     page.addEventListener('mousedown', function (e) { if (e.target.tagName === 'SELECT') onFocus(e); });
     document.addEventListener('click', onClick);
     window.addEventListener('hashchange', route);

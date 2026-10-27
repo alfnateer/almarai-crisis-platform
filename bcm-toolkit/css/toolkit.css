@@ -98,6 +98,7 @@ textarea.in{resize:vertical;line-height:1.35;min-height:32px}
 .sheet-table{border-collapse:separate;border-spacing:0;width:100%;font-size:.84rem}
 .sheet-table th{position:sticky;top:0;z-index:2;background:var(--head);color:#fff;font-weight:600;font-size:.76rem;text-align:left;padding:8px;border-right:1px solid rgba(255,255,255,.15);vertical-align:bottom}
 .sheet-table th.auto-h{background:var(--head2)}
+.sheet-table th .info{display:inline-block;width:14px;height:14px;line-height:14px;border-radius:50%;background:rgba(255,255,255,.25);font-size:.65rem;text-align:center;font-style:italic;cursor:help}
 .sheet-table .group-row th{top:0;background:#00A0E1;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;padding:4px 8px}
 .sheet-table .group-row th:not(.grp){background:var(--head)}
 .sheet-table .group-row+tr th{top:24px}

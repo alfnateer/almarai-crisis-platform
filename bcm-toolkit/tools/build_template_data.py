@@ -3,7 +3,7 @@
 
 Run after replacing template/BCM_Implementation_Toolkit_*.xlsx:
 
-    python3 tools/build_template_data.py template/BCM_Implementation_Toolkit_v6.4_Generic.xlsx
+    python3 tools/build_template_data.py template/Almarai_BCM_Toolkit_Template_v0.2.xlsx
 
 Writes:
   js/template.js       - the workbook itself (base64), used as the export template
@@ -69,6 +69,20 @@ def formula_cells(wb):
         out[ws.title] = sorted(
             c.coordinate for row in ws.iter_rows() for c in row if formula(c.value)
         )
+    return out
+
+
+def comments(wb):
+    """Cell notes (column guidance) per sheet, shown as header tooltips."""
+    out = {}
+    for ws in wb.worksheets:
+        notes = {}
+        for row in ws.iter_rows():
+            for c in row:
+                if c.comment and c.comment.text:
+                    notes[c.coordinate] = c.comment.text.strip()
+        if notes:
+            out[ws.title] = notes
     return out
 
 
@@ -200,6 +214,7 @@ def main():
         "static": static_values(wb),
         "formulas": formula_cells(wb),
         "isoMap": iso_map_wiring(wb),
+        "comments": comments(wb),
         "reference": {
             "01. Instructions": render_sheet_html(wb["01. Instructions"]),
             "20. ERM RA Guidance": render_sheet_html(wb["20. ERM RA Guidance"]),

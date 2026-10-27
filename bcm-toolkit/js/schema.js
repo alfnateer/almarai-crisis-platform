@@ -1,5 +1,5 @@
 /*
- * BCM Toolkit schema - mirrors the workbook "BCM Implementation Toolkit v6.4".
+ * BCM Toolkit schema - mirrors the workbook "Almarai BCM Toolkit Template v0.2".
  *
  * Every input the website collects maps to exactly one cell in the workbook, so the
  * export can write it straight back into the original template. Columns marked
@@ -99,45 +99,45 @@
           { c: 'D', label: 'Approved By', autoRows: [25] }] } }
       ]
     },
-    { id: 'guide', sheet: S.INS, nav: '01', title: 'Instructions', group: 'Governance', kind: 'reference',
+    { id: 'guide', sheet: S.INS, nav: '01', title: 'Instructions', group: 'Hidden sheets in the workbook', kind: 'reference',
       iso: 'How the toolkit works - governance, colours & flow' },
-    { id: 'dash', sheet: S.DASH, nav: '02', title: 'Dashboard', group: 'Governance', kind: 'view',
+    { id: 'dash', sheet: S.DASH, nav: '02', title: 'Dashboard', group: 'Governance', hiddenInWorkbook: true, kind: 'view',
       iso: 'ISO 22301: 9.1 Monitoring, measurement, analysis and evaluation' },
     {
       id: 'bup', sheet: S.BUP, nav: '03', title: 'Business Unit Profile', group: 'Plan - Context & Scope',
-      iso: 'ISO 22301 Clause 4 - Context of the organisation', kind: 'form', keepDefaults: true,
+      iso: 'ISO 22301 Clause 4 - Context of the organisation', kind: 'form',
       sections: [
-        { title: 'Section 1 - Organization Identity (Clause 4.1)', rowsFields: { col: 'B', rows: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14], labelCol: 'A', type: 'textarea' } },
-        { title: 'Section 2 - Leadership & Governance (Clause 5)', grid: { rows: [18, 19, 20, 21, 22, 23, 24, 25], cols: [
+        { title: 'Section 1 - Organization Identity', rowsFields: { col: 'B', rows: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14], labelCol: 'A', type: 'textarea' } },
+        { title: 'Section 2 - Leadership & Governance', grid: { rows: [18, 19, 20, 21, 22, 23, 24, 25], cols: [
           { c: 'A', label: 'Field / Role' }, { c: 'B', label: 'Name' }, { c: 'C', label: 'Title' }, { c: 'D', label: 'Contact' }] } },
-        { title: 'Section 3 - Internal Context (Clause 4.1)', rowsFields: { col: 'B', rows: [28, 29, 30, 31, 32, 33, 34, 35], labelCol: 'A', type: 'textarea' } },
-        { title: 'Section 4 - External Context (Clause 4.1)', rowsFields: { col: 'B', rows: [38, 39, 40, 41, 42, 43, 44, 45, 46], labelCol: 'A', type: 'textarea' } },
-        { title: 'Section 5 - Interested Parties & Requirements (Clause 4.2)', grid: { rows: [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60], labelCol: 'A', labelTitle: 'Interested Party', cols: [
+        { title: 'Section 3 - Internal Context', rowsFields: { col: 'B', rows: [28, 29, 30, 31, 32, 33, 34, 35], labelCol: 'A', type: 'textarea' } },
+        { title: 'Section 4 - External Context', rowsFields: { col: 'B', rows: [38, 39, 40, 41, 42, 43, 44, 45, 46], labelCol: 'A', type: 'textarea' } },
+        { title: 'Section 5 - Climate Relevance for BCMS Context and Interested Parties', rowsFields: { col: 'B', rows: [50, 51, 52, 53, 54], labelCol: 'A', type: 'textarea' } },
+        { title: 'Section 6 - Interested Parties & Requirements', grid: { rows: [58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68], labelCol: 'A', labelTitle: 'Interested Party', cols: [
           { c: 'B', label: 'Requirements / Expectations', type: 'textarea' }, { c: 'C', label: 'How Addressed', type: 'textarea' },
-          { c: 'D', label: 'Priority', list: ['High', 'Medium', 'Low'] }] } },
-        { title: 'Section 6 - BCMS Scope Definition (Clause 4.3)', rowsFields: { col: 'B', rows: [63, 64, 65, 66, 67, 68], labelCol: 'A', type: 'textarea' } },
-        { title: 'Section 7 - Legal & Regulatory Requirements (Clause 4.2.2)', grid: { rows: [72, 73, 74, 75, 76, 77, 78, 79, 80, 81], cols: [
+          { c: 'D', label: 'Priority', list: ['Critical', 'High', 'Medium', 'Low'] }] } },
+        { title: 'Section 7 - BCMS Scope Definition', rowsFields: { col: 'B', rows: [71, 72, 73, 74, 75, 76], labelCol: 'A', type: 'textarea' } },
+        { title: 'Section 8 - Legal & Regulatory Requirements', grid: { rows: [80, 81, 82, 83, 84, 85, 86, 87, 88, 89], cols: [
           { c: 'A', label: 'Requirement Type' }, { c: 'B', label: 'Specific Requirement', type: 'textarea' },
           { c: 'C', label: 'Compliance Status', list: ['Compliant', 'Partially Compliant', 'Non-Compliant', 'Not Assessed'] }, { c: 'D', label: 'Owner' }] } },
-        { title: 'Section 8 - Critical Assets & Resources Overview', rowsFields: { col: 'B', rows: [84, 85, 86, 87, 88, 89, 90, 91, 92, 93], labelCol: 'A', type: 'textarea' } },
-        { title: 'Section 9 - Risk Appetite & Tolerance (aligned with ERM)', grid: { rows: [97, 98, 99, 100, 101, 102, 103, 104], labelCol: 'A', labelTitle: 'Risk Category', cols: [
-          { c: 'B', label: 'Appetite Level', list: ['Zero', 'Low', 'Moderate', 'High'] }, { c: 'C', label: 'Tolerance Threshold', type: 'textarea' },
-          { c: 'D', label: 'Rationale', type: 'textarea' }] } },
-        { title: 'Section 10 - Profile Approval', grids: [
-          { caption: 'Profile Completed By', rows: [109], cols: [{ c: 'A', label: 'Position / Title' }, { c: 'B', label: 'Name' }, { c: 'C', label: 'Date', type: 'date' }, { c: 'D', label: 'Signature' }] },
-          { caption: 'Profile Reviewed By', rows: [113], cols: [{ c: 'A', label: 'Position / Title' }, { c: 'B', label: 'Name' }, { c: 'C', label: 'Date', type: 'date' }, { c: 'D', label: 'Signature' }] },
-          { caption: 'Profile Approved By', rows: [117], cols: [{ c: 'A', label: 'Position / Title' }, { c: 'B', label: 'Name' }, { c: 'C', label: 'Date', type: 'date' }, { c: 'D', label: 'Signature' }] }
-        ], fields: [
-          { addr: 'B119', label: 'Completed Date', type: 'date' },
-          { addr: 'D119', label: 'Next Review Date', auto: true }
+        { title: 'Section 9 - Critical Assets & Resources Overview', rowsFields: { col: 'B', rows: [92, 93, 94, 95, 96, 97, 98, 99, 100, 101], labelCol: 'A', type: 'textarea' } },
+        { title: 'Section 10 - Risk Appetite & Tolerance (aligned with ERM)', fields: [
+          { addr: 'B105', label: 'Risk appetite & tolerance (one merged cell in the workbook, covering Financial to Customer Impact)', type: 'textarea' }
         ] },
-        { title: 'Section 11 - Climate Relevance for BCMS Context and Interested Parties', rowsFields: { col: 'B', rows: [123, 124, 125, 126, 127], labelCol: 'A', type: 'textarea' } }
+        { title: 'Section 11 - Profile Approval', grids: [
+          { caption: 'Profile Completed By', rows: [117], cols: [{ c: 'A', label: 'Position / Title' }, { c: 'B', label: 'Name' }, { c: 'C', label: 'Date', type: 'date' }, { c: 'D', label: 'Signature' }] },
+          { caption: 'Profile Reviewed By', rows: [121], cols: [{ c: 'A', label: 'Position / Title' }, { c: 'B', label: 'Name' }, { c: 'C', label: 'Date', type: 'date' }, { c: 'D', label: 'Signature' }] },
+          { caption: 'Profile Approved By', rows: [125], cols: [{ c: 'A', label: 'Position / Title' }, { c: 'B', label: 'Name' }, { c: 'C', label: 'Date', type: 'date' }, { c: 'D', label: 'Signature' }] }
+        ], fields: [
+          { addr: 'B127', label: 'Completed Date', type: 'date' },
+          { addr: 'D127', label: 'Next Review Date', auto: true }
+        ] }
       ]
     },
     {
       id: 'ps', sheet: S.PS, nav: '04', title: 'Products & Services', group: 'Plan - Context & Scope',
-      iso: 'Step 1 - Scope | ISO 22301: 4.3 Scope; 8.2.2 Prioritised activities', kind: 'table',
-      first: 6, last: 50, numCol: 'A', usedBy: ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'],
+      iso: 'Scope: Almarai Products & Services | ISO 22301: 4.3 Scope; 8.2.2 Prioritised activities', kind: 'table',
+      first: 5, last: 49, numCol: 'A', usedBy: ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'],
       note: 'Steward issues P&S IDs. In-scope rows (In Scope = Yes) get a BIA order and become BIA blocks in 07. BIA, in the order listed here.',
       cols: [
         { c: 'B', label: 'P&S ID', auto: true, w: 80 },
@@ -192,7 +192,7 @@
     {
       id: 'dep', sheet: S.DEP, nav: '08', title: 'Dependency Register', group: 'Do - BIA & Risk',
       iso: 'Step 2b - one row per dependency | ISO 22301: 8.2.2 Dependencies & supporting resources', kind: 'table',
-      first: 5, last: 204, numCol: 'A', usedBy: ['C', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'],
+      first: 5, last: 209, numCol: 'A', usedBy: ['C', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'],
       cols: [
         { c: 'B', label: 'Dep ID', auto: true, w: 80 },
         { c: 'C', label: 'BIA # (select)', type: 'select', options: 'biaIds', w: 100 },
@@ -221,7 +221,7 @@
     {
       id: 'ra', sheet: S.RA, nav: '10', title: 'Risk Assessment', group: 'Do - BIA & Risk',
       iso: "Step 3 - BCM risk assessment by dependency | ISO 22301: 8.2.3 Risk assessment", kind: 'table',
-      first: 5, last: 34, numCol: 'A', usedBy: ['C', 'D', 'E', 'G', 'I', 'J', 'K', 'M', 'R', 'U', 'V', 'W', 'X', 'Y', 'AA', 'AB', 'AC'],
+      first: 5, last: 61, numCol: 'A', usedBy: ['C', 'D', 'E', 'G', 'I', 'J', 'K', 'M', 'R'],
       note: 'Likelihood x Impact uses the ERM heat map in 20. ERM RA Guidance. A risk gets its Risk ID once a Risk Assumption is chosen.',
       cols: [
         { c: 'B', label: 'Risk ID', auto: true, w: 80 },
@@ -231,7 +231,7 @@
         { c: 'F', label: 'Applicable BIA (P&S)', auto: true, w: 170 },
         { c: 'G', label: 'Risk Assumption (select or type)', type: 'select', options: 'riskAssumptions', free: true, w: 190 },
         { c: 'H', label: 'Business Disruption Scenario (auto)', auto: true, w: 220 },
-        { c: 'I', label: 'ERM / Site Risk Register Ref#', w: 110 },
+        { c: 'I', label: 'ERM / Site Risk Register Ref#', type: 'select', options: ['No applicable ERM reference'], free: true, w: 150 },
         { c: 'J', label: 'Implemented Controls', type: 'textarea', w: 200 },
         { c: 'K', label: 'Residual Likelihood (1-5)', type: 'select', options: ['1', '2', '3', '4', '5'], numeric: true, w: 80 },
         { c: 'L', label: 'Likelihood Rating', auto: true, w: 100 },
@@ -243,15 +243,7 @@
         { c: 'R', label: 'Remarks', type: 'textarea', w: 160 },
         { c: 'S', label: 'S&S # (auto)', auto: true, w: 120 },
         { c: 'T', label: 'R&R IDs (auto)', auto: true, w: 120 },
-        { c: 'U', label: 'Risk Owner', w: 120 },
-        { c: 'V', label: 'Assessment Date', type: 'date', w: 130 },
-        { c: 'W', label: 'Review Date', type: 'date', w: 130 },
-        { c: 'X', label: 'Approver', w: 120 },
-        { c: 'Y', label: 'Evidence Reference', w: 130 },
-        { c: 'Z', label: 'Completion Check', auto: true, w: 100, badge: true },
-        { c: 'AA', label: 'Climate Relevance', type: 'select', options: ['Yes', 'No', 'To Assess', 'Not Applicable'], w: 110 },
-        { c: 'AB', label: 'Climate-Related Disruption Scenario', type: 'textarea', w: 180 },
-        { c: 'AC', label: 'Climate-Sensitive Dependency / Interested Party', type: 'textarea', w: 180 }
+        { c: 'U', label: 'Risks (New / Existing)', auto: true, w: 110, badge: true }
       ]
     },
     {
@@ -287,7 +279,7 @@
     {
       id: 'req', sheet: S.REQ, nav: '12', title: 'Requirements Register', group: 'Do - Strategies & Plans',
       iso: 'Step 4b - one row per continuity requirement | ISO 22301: 8.3', kind: 'table',
-      first: 5, last: 304, numCol: 'A', usedBy: ['C', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'],
+      first: 5, last: 304, numCol: 'A', usedBy: ['C', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'],
       cols: [
         { c: 'B', label: 'Req ID', auto: true, w: 85 },
         { c: 'C', label: 'S&S ID', type: 'select', options: 'ssIds', w: 90 },
@@ -295,12 +287,11 @@
         { c: 'E', label: 'Category', type: 'select', options: 'lstReqCat', w: 120 },
         { c: 'F', label: 'Item / Resource / Role', w: 170 },
         { c: 'G', label: 'Detail / Specification', type: 'textarea', w: 200 },
-        { c: 'H', label: 'MBCO resource requirement', type: 'textarea', w: 170 },
-        { c: 'I', label: 'Primary Location', w: 130 },
-        { c: 'J', label: 'Alternate Location(s)', w: 130 },
-        { c: 'K', label: 'Supporting Documents', w: 140 },
-        { c: 'L', label: 'Owner', w: 120 },
-        { c: 'M', label: 'Readiness', type: 'select', options: ['Ready', 'In Progress'], w: 100 }
+        { c: 'H', label: 'Primary Location', w: 130 },
+        { c: 'I', label: 'Alternate Location(s)', w: 130 },
+        { c: 'J', label: 'Supporting Documents', w: 140 },
+        { c: 'K', label: 'Owner', w: 120 },
+        { c: 'L', label: 'Readiness', type: 'select', options: ['Ready', 'In Progress'], w: 100 }
       ]
     },
     {
@@ -313,8 +304,8 @@
         { c: 'D', label: 'Dependency area', type: 'select', options: 'drArea', w: 140 },
         { c: 'E', label: 'Dependent System / Application', type: 'select', options: 'drSystem', free: true, w: 170 },
         { c: 'F', label: 'Business P&S supported', w: 160 },
-        { c: 'G', label: 'Required RTO (hrs)', type: 'number', w: 90 },
-        { c: 'H', label: 'Required RPO (hrs)', type: 'number', w: 90 },
+        { c: 'G', label: 'Required RTO in hours', type: 'number', w: 90 },
+        { c: 'H', label: 'Required RPO in hours', type: 'number', w: 90 },
         { c: 'I', label: 'DR RTO capable (hrs)', type: 'number', w: 90 },
         { c: 'J', label: 'DR RPO capable (hrs)', type: 'number', w: 90 },
         { c: 'K', label: 'DR Strategy', type: 'select', options: 'lstDRStrategy', w: 150 },
@@ -332,7 +323,7 @@
     {
       id: 'rr', sheet: S.RR, nav: '14', title: 'Recovery & Response', group: 'Do - Strategies & Plans',
       iso: 'Step 5 - Recovery & Response plan | ISO 22301: 8.4 Plans & procedures; 8.5 Exercise programme', kind: 'table',
-      first: 6, last: 105, numCol: 'A', usedBy: ['C', 'E', 'F', 'L', 'M', 'N', 'R'],
+      first: 5, last: 104, numCol: 'A', usedBy: ['C', 'E', 'F', 'L', 'M', 'N', 'R'],
       cols: [
         { c: 'B', label: 'R&R ID', auto: true, w: 80 },
         { c: 'C', label: 'S&S ID', type: 'select', options: 'ssIds', w: 90 },
@@ -387,12 +378,12 @@
       ]
     },
     {
-      id: 'pdca', sheet: S.PDCA, nav: '17', title: 'BCMS Progress (PDCA)', group: 'Check - Monitor & Improve',
+      id: 'pdca', sheet: S.PDCA, nav: '17', title: 'BCMS Progress (PDCA)', group: 'Hidden sheets in the workbook',
       iso: 'ISO 22301: 4.4 BCMS; 10.2 Continual improvement', kind: 'pdca', keepDefaults: true,
       rows: { first: 5, last: 19 }
     },
     {
-      id: 'docs', sheet: S.DOCS, nav: '18', title: 'ISO Docs & Records', group: 'Check - Monitor & Improve',
+      id: 'docs', sheet: S.DOCS, nav: '18', title: 'ISO Docs & Records', group: 'Hidden sheets in the workbook',
       iso: 'Documents & records the toolkit does not generate - the certification gap register', kind: 'table', fixedRows: true, keepDefaults: true,
       first: 5, last: 24, usedBy: [],
       cols: [
@@ -418,7 +409,7 @@
       ]
     },
     {
-      id: 'iso', sheet: S.ISO, nav: '19', title: 'ISO 22301 Map', group: 'Check - Monitor & Improve',
+      id: 'iso', sheet: S.ISO, nav: '19', title: 'ISO 22301 Map', group: 'Hidden sheets in the workbook',
       iso: 'ISO 22301:2019 full clause map - status pulls from PDCA and ISO Docs where wired', kind: 'isomap', keepDefaults: true,
       rows: { first: 5, last: 43 },
       inputCols: ['E', 'F', 'G', 'J', 'K', 'L', 'M', 'N', 'O'],
@@ -442,7 +433,7 @@
     },
     { id: 'erm', sheet: S.ERM, nav: '20', title: 'ERM RA Guidance', group: 'Reference', kind: 'reference',
       iso: 'ISO 22301: 8.2.3 Risk criteria (per ERM framework) - illustrative' },
-    { id: 'ana', sheet: S.ANA, nav: '21', title: 'Analysis', group: 'Reference', kind: 'view',
+    { id: 'ana', sheet: S.ANA, nav: '21', title: 'Analysis', group: 'Hidden sheets in the workbook', kind: 'view',
       iso: 'In-scope products & services with corporate vs BIA recovery targets' }
   ];
 
