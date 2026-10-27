@@ -45,23 +45,19 @@
     var last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
     return y + '-' + pad2(m + 1) + '-' + pad2(Math.min(day, last));
   }
-  // DATE(YEAR+1, MONTH, DAY): rolls over (29 Feb -> 1 Mar).
-  function addYearRoll(iso) {
-    var s = serial(iso);
-    if (s === null) return '';
-    var d = new Date(s * 864e5);
-    return isoFromSerial(Date.UTC(d.getUTCFullYear() + 1, d.getUTCMonth(), d.getUTCDate()) / 864e5);
-  }
-  // "3 days" -> 72 (Excel LET/TEXTBEFORE/SWITCH duration parser).
-  function durationHours(v) {
+  // "3 days" -> 72: a number, or "<number> <unit>" where the first three letters of the
+  // unit are looked up in the DurationUnits table (hou / day / wee / mon by default).
+  var DEFAULT_UNITS = { hou: 1, day: 24, wee: 168, mon: 730.5 };
+  function durationHours(v, units) {
     if (blank(v)) return '';
-    var s = String(v);
+    if (isNum(v)) return v;
+    var s = String(v).trim();
     var i = s.indexOf(' ');
-    if (i < 0) return '#VALUE!';
-    var n = Number(s.slice(0, i));
-    if (s.slice(0, i).trim() === '' || isNaN(n)) return '#VALUE!';
-    var unit = s.slice(i + 1).toLowerCase();
-    var f = { hour: 1, hours: 1, day: 24, days: 24, week: 168, weeks: 168, month: 24 * 365.25 / 12, months: 24 * 365.25 / 12 }[unit];
+    if (i < 0) return '';
+    var head = s.slice(0, i);
+    var n = Number(head);
+    if (head === '' || isNaN(n)) return '';
+    var f = (units || DEFAULT_UNITS)[s.slice(i + 1).trim().toLowerCase().slice(0, 3)];
     return f === undefined ? '' : n * f;
   }
   function uniq(arr) {
@@ -91,26 +87,39 @@
     function set(sheet, addr, v) { calc[sheet][addr] = v; }
     function eqStr(a, b) { return String(a).toLowerCase() === String(b).toLowerCase(); }
 
-    // ---- 00 Document Control
-    set(S.DOC, 'B7', blank(g(S.DOC, 'B6')) ? '' : edate(g(S.DOC, 'B6'), 12));
-    set(S.DOC, 'A25', str(g(S.DOC, 'B5')));
-    set(S.DOC, 'B25', str(g(S.DOC, 'B6')));
-    set(S.DOC, 'D25', str(g(S.DOC, 'B21')));
     // ---- 03 BU Profile
-    set(S.BUP, 'D119', blank(g(S.BUP, 'B119')) ? '' : edate(g(S.BUP, 'B119'), 12));
+    set(S.BUP, 'D127', blank(g(S.BUP, 'B127')) ? '' : edate(g(S.BUP, 'B127'), 12));
+    // Duration units table (03. Business Unit Profile AA138:AB141).
+    var units = {};
+    for (var du = SCHEMA.DURATION_UNITS.first; du <= SCHEMA.DURATION_UNITS.last; du++) {
+      var uk = String(g(S.BUP, SCHEMA.DURATION_UNITS.unitCol + du)).toLowerCase().slice(0, 3), uv = num(g(S.BUP, SCHEMA.DURATION_UNITS.hoursCol + du));
+      if (uk !== '' && uv !== null && !(uk in units)) units[uk] = uv;
+    }
 
     // ---- 04 Products & Services (B, M, N)
     var PS_ROWS = range(5, 49);
     PS_ROWS.forEach(function (r) {
       var a = g(S.PS, 'A' + r);
       set(S.PS, 'B' + r, blank(g(S.PS, 'E' + r)) ? '' : 'PS-' + pad3(a));
-      set(S.PS, 'M' + r, durationHours(g(S.PS, 'L' + r)));
+      set(S.PS, 'M' + r, durationHours(g(S.PS, 'L' + r), units));
     });
     PS_ROWS.forEach(function (r) {
       var a = num(g(S.PS, 'A' + r));
       if (g(S.PS, 'I' + r) !== 'Yes' || a === null) { set(S.PS, 'N' + r, ''); return; }
       var n = count(PS_ROWS, function (q) { var aq = num(g(S.PS, 'A' + q)); return aq !== null && aq < a && g(S.PS, 'I' + q) === 'Yes'; });
       set(S.PS, 'N' + r, n + 1);
+    });
+    // P / Q: order of first appearance of each business unit / division (feeds the lists).
+    ['C', 'D'].forEach(function (src, i) {
+      var out = ['P', 'Q'][i], seen = {}, n = 0;
+      PS_ROWS.forEach(function (r) {
+        var v = g(S.PS, src + r);
+        if (v === '') { set(S.PS, out + r, ''); return; }
+        var k = String(v).toLowerCase();
+        if (seen[k]) { set(S.PS, out + r, ''); return; }
+        seen[k] = 1;
+        set(S.PS, out + r, ++n);
+      });
     });
     function psRowByName(name) {
       for (var i = 0; i < PS_ROWS.length; i++) if (eqStr(g(S.PS, 'E' + PS_ROWS[i]), name)) return PS_ROWS[i];
@@ -148,8 +157,7 @@
       var byName = name === '' ? null : psRowByName(name);
       set(S.BIA, 'F' + t, byName ? str(g(S.PS, 'B' + byName)) : '');
       var scores = [];
-      // Max impact and impact type look at J..Q (the "More than 1 Month" column is excluded).
-      var SQ = BIA.scoreCols.slice(0, 8);
+      var SQ = BIA.scoreCols;
       for (var r = t; r < t + 7; r++) SQ.forEach(function (c) { var x = num(g(S.BIA, c + r)); if (x !== null) scores.push(x); });
       var smax = scores.length ? Math.max.apply(null, scores) : '';
       set(S.BIA, 'S' + t, smax);
@@ -159,27 +167,23 @@
         set(S.BIA, 'T' + rr, smax === '' || !rowScores.length ? '' : (Math.max.apply(null, rowScores) > 3 ? str(g(S.BIA, 'I' + rr)) : ''));
       }
       set(S.BIA, 'AA' + t, name === '' ? '' : blockMaxFirstCol(t));
-      set(S.BIA, 'AD' + t, durationHours(g(S.BIA, 'AC' + t)));
-      set(S.BIA, 'AG' + t, blank(g(S.BIA, 'AF' + t)) ? '' : addYearRoll(g(S.BIA, 'AF' + t)));
+      set(S.BIA, 'AD' + t, durationHours(g(S.BIA, 'AC' + t), units));
+      set(S.BIA, 'AG' + t, blank(g(S.BIA, 'AF' + t)) ? '' : edate(g(S.BIA, 'AF' + t), 12));
     }
     // U, W, X, AB need the block names first.
     for (k = 1; k <= BIA.blocks; k++) {
       t = BIA.top(k);
       var nm = g(S.BIA, 'E' + t);
       if (nm === '') { ['U', 'W', 'X', 'AB'].forEach(function (c) { set(S.BIA, c + t, ''); }); continue; }
-      var matches = PS_ROWS.filter(function (r) { return eqStr(g(S.PS, 'E' + r), nm); }).map(function (r) { return g(S.PS, 'J' + r); });
-      var nth = 0;
-      for (var b = 1; b <= k; b++) if (eqStr(g(S.BIA, 'E' + BIA.top(b)), nm)) nth++;
-      var u = matches[nth - 1];
-      u = (blank(u) || u === 0) ? '' : u;
+      // Corporate values come from the P&S row whose BIA Order is this block.
+      var po = null;
+      PS_ROWS.forEach(function (r) { if (po === null && g(S.PS, 'N' + r) === k) po = r; });
+      var u = po ? str(g(S.PS, 'J' + po)) : '';
       set(S.BIA, 'U' + t, u);
       var v = g(S.BIA, 'V' + t);
       set(S.BIA, 'W' + t, (u === 'Yes' || v === 'Yes') ? 'Yes' : ((u === 'No' && v === 'No') ? 'No' : ((u === 'Under Evaluation' && v === 'No') ? 'Under Evaluation' : '')));
-      var pr = psRowByName(nm);
-      set(S.BIA, 'X' + t, pr ? str(g(S.PS, 'K' + pr)) : '');
-      var f = g(S.BIA, 'F' + t);
-      var pi = psRowById(f);
-      set(S.BIA, 'AB' + t, f === '' || !pi ? '' : g(S.PS, 'M' + pi));
+      set(S.BIA, 'X' + t, po ? str(g(S.PS, 'K' + po)) : '');
+      set(S.BIA, 'AB' + t, po ? g(S.PS, 'M' + po) : '');
     }
     // P&S O: BU BIA MTPD from the matching BIA block.
     PS_ROWS.forEach(function (r) {
@@ -218,7 +222,7 @@
     });
 
     // ---- 08 Dependency Register
-    var DEP_ROWS = range(5, 209);
+    var DEP_ROWS = range(5, 204);
     DEP_ROWS.forEach(function (r) {
       set(S.DEP, 'B' + r, blank(g(S.DEP, 'I' + r)) ? '' : 'DEP-' + pad3(g(S.DEP, 'A' + r)));
       var c = g(S.DEP, 'C' + r);
@@ -228,15 +232,9 @@
     });
 
     // ---- 10 Risk Assessment (part 1)
-    var RA_ROWS = range(5, 61);
+    var RA_ROWS = range(5, 34);
     var LIK = ['Rare', 'Infrequent', 'Occasional', 'Frequent', 'Almost Certain'];
     var IMP = ['Negligible', 'Minor', 'Medium', 'Critical', 'Catastrophic'];
-    function heat(l, i) {
-      // '20. ERM RA Guidance'!E79:I83 - row 79 is likelihood 5.
-      var row = 79 + (5 - l), col = SCHEMA.numToCol(4 + i);
-      var x = num(book.get(S.ERM, col + row));
-      return x === null ? '' : x;
-    }
     function applicable(bu, div, dep, field) {
       // RA col F (field = scanE, names) and Risk Register col I (field = scanB, BIA ids).
       if (bu === '') return '';
@@ -260,18 +258,20 @@
       var K = num(g(S.RA, 'K' + r)), M = num(g(S.RA, 'M' + r));
       set(S.RA, 'L' + r, K === null ? '' : (LIK[K - 1] || '#VALUE!'));
       set(S.RA, 'N' + r, M === null ? '' : (IMP[M - 1] || '#VALUE!'));
-      var O = (K === null || M === null) ? '' : heat(K, M);
+      // Risk Score = Likelihood x Impact (template v5.1).
+      var O = (K === null || M === null) ? '' : K * M;
       set(S.RA, 'O' + r, O);
       var P = O === '' ? '' : (O >= 20 ? 'Critical' : (O >= 12 ? 'Significant' : (O >= 7 ? 'Moderate' : 'Low')));
       set(S.RA, 'P' + r, P);
       set(S.RA, 'Q' + r, P === '' ? '' : ({ Critical: 1, Significant: 2, Moderate: 3 }[P] || 4));
-      // "Risks": New when there is no ERM reference, otherwise Existing (every table row).
-      set(S.RA, 'U' + r, g(S.RA, 'I' + r) === 'No applicable ERM reference' ? 'New' : 'Existing');
     });
-    // A risk record is complete when BU, Division, Dependency, Applicable P&S, Risk Assumption,
-    // ERM ref, Controls, Likelihood and Impact are filled (template v0.2.1).
-    var RA_REQUIRED = ['C', 'D', 'E', 'F', 'G', 'I', 'J', 'K', 'M'];
-    function raComplete(r) { return RA_REQUIRED.every(function (c) { return g(S.RA, c + r) !== ''; }); }
+    // Source Completion (Z): scope, assumption, scenario, controls, ratings, owner, dates,
+    // approver and evidence all present (template v5.1).
+    var RA_REQUIRED = ['C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'M', 'U', 'X', 'Y'];
+    function raComplete(r) {
+      return RA_REQUIRED.every(function (c) { return g(S.RA, c + r) !== ''; }) && serial(g(S.RA, 'V' + r)) !== null && serial(g(S.RA, 'W' + r)) !== null;
+    }
+    RA_ROWS.forEach(function (r) { set(S.RA, 'Z' + r, g(S.RA, 'B' + r) === '' ? '' : (raComplete(r) ? 'Complete' : 'Incomplete')); });
     function raRowById(id) {
       if (blank(id)) return null;
       for (var i = 0; i < RA_ROWS.length; i++) if (eqStr(g(S.RA, 'B' + RA_ROWS[i]), id)) return RA_ROWS[i];
@@ -419,10 +419,8 @@
       var exStat = RR_ROWS.filter(function (q) { return g(S.RR, 'B' + q) !== '' && ss.some(function (s) { return eqStr(s, g(S.RR, 'C' + q)); }); }).map(function (q) { return g(S.RR, 'P' + q); });
       row.O = exStat.length ? worst(exStat, EX_ORD) : 'Not Created';
       row.R = str(g(S.RA, 'R' + r));
-      // S shows the Risks (New / Existing) column; T-W are not captured in 10. Risk Assessment.
-      row.S = str(g(S.RA, 'U' + r));
-      row.T = row.U = row.V = row.W = '';
-      row.X = raComplete(r) ? 'Complete' : 'Incomplete';
+      row.S = str(g(S.RA, 'U' + r)); row.T = str(g(S.RA, 'V' + r)); row.U = str(g(S.RA, 'W' + r));
+      row.V = str(g(S.RA, 'X' + r)); row.W = str(g(S.RA, 'Y' + r)); row.X = str(g(S.RA, 'Z' + r));
       var critical = row.G === 'Critical' || row.H === 1;
       var unrated = row.G === '';
       var dueOver = row.N !== '' && serial(row.N) < T;
@@ -495,47 +493,6 @@
       set(S.CAPA, 'T' + r, (M === 'Closed' || M === 'Cancelled' || g(S.CAPA, 'L' + r) === '') ? '' : ((L !== null && L < T) ? 'Overdue' : 'On Track'));
     });
 
-    // ---- 18 ISO Docs & Records
-    var DOC_ROWS = range(5, 24);
-    DOC_ROWS.forEach(function (r) {
-      var A = g(S.DOCS, 'A' + r), F = g(S.DOCS, 'F' + r), M = serial(g(S.DOCS, 'M' + r));
-      var s;
-      if (A === '') s = '';
-      else if (F === '' || F === 'Not Started' || F === 'Missing') s = 'Not Evidenced';
-      else if (F === 'Not Applicable') s = 'N/A';
-      else if (M === null) s = 'Review Date Missing';
-      else if (M < T) s = 'Overdue';
-      else if (M <= T + 30) s = 'Due ≤30 Days';
-      else s = 'Current';
-      set(S.DOCS, 'S' + r, s);
-    });
-    function docRow(ext) {
-      for (var i = 0; i < DOC_ROWS.length; i++) if (g(S.DOCS, 'A' + DOC_ROWS[i]) === ext) return DOC_ROWS[i];
-      return null;
-    }
-    function docComplete(r) {
-      return g(S.DOCS, 'F' + r) === 'Evidence Filed' && g(S.DOCS, 'K' + r) !== '' && serial(g(S.DOCS, 'L' + r)) !== null &&
-        serial(g(S.DOCS, 'M' + r)) !== null && g(S.DOCS, 'N' + r) !== '' && g(S.DOCS, 'O' + r) !== '' && g(S.DOCS, 'P' + r) !== '' &&
-        serial(g(S.DOCS, 'Q' + r)) !== null && g(S.DOCS, 'R' + r) !== '' && g(S.DOCS, 'S' + r) !== 'Overdue';
-    }
-    function pdcaDocStatus(ext) {
-      var r = docRow(ext);
-      var s = r ? g(S.DOCS, 'F' + r) : '';
-      if (s === '' || s === 'Not Started') return 'Not Assessed';
-      if (s === 'Not Applicable') return 'Yes';
-      return docComplete(r) ? 'Yes' : 'Partial';
-    }
-    function isoDocStatus(ext) {
-      var r = docRow(ext);
-      if (!r) return '#N/A';
-      var s = g(S.DOCS, 'F' + r);
-      if (s === '' || s === 'Not Started') return 'Not Assessed';
-      if (s === 'Not Applicable') return 'N/A';
-      if (s === 'Missing') return 'Missing';
-      return docComplete(r) ? 'In Place' : 'Partial';
-    }
-
-    // ---- 17 PDCA
     var biaIds = [];
     for (k = 1; k <= BIA.blocks; k++) { var bb = g(S.BIA, 'B' + BIA.top(k)); if (bb !== '') biaIds.push({ id: bb, t: BIA.top(k) }); }
     var raIds = RA_ROWS.filter(function (r) { return /^RA-/.test(g(S.RA, 'B' + r)); });
@@ -544,100 +501,6 @@
     var drIds = range(5, 204).filter(function (r) { return /^DR-/.test(g(S.DR, 'B' + r)); });
     var capaIds = CAPA_ROWS.filter(function (r) { return /^CAPA-/.test(g(S.CAPA, 'B' + r)); });
     var reqCount = count(REQ_ROWS, function (r) { return /^REQ-/.test(g(S.REQ, 'B' + r)); });
-    var pd = {};
-    (function () {
-      var scope = count(PS_ROWS, function (r) { return g(S.PS, 'I' + r) === 'Yes'; });
-      var fields = count(range(5, 14), function (r) { return g(S.BUP, 'B' + r) !== ''; });
-      pd[5] = (scope === 0 && fields === 0) ? 'Not Assessed' : ((scope > 0 && fields === 10) ? 'Yes' : 'Partial');
-      pd[6] = pdcaDocStatus('EXT-01');
-      var ps = count(PS_ROWS, function (r) { return /^PS-/.test(g(S.PS, 'B' + r)); });
-      var crit = count(PS_ROWS, function (r) { return g(S.PS, 'J' + r) === 'Yes'; });
-      pd[7] = ps === 0 ? 'Not Assessed' : (crit === 0 ? 'Partial' : 'Yes');
-      var n = biaIds.length;
-      var complete = count(biaIds, function (b) { return g(S.BIA, 'E' + b.t) !== '' && serial(g(S.BIA, 'AF' + b.t)) !== null && serial(g(S.BIA, 'AG' + b.t)) !== null; });
-      var overdue = count(biaIds, function (b) { var x = serial(g(S.BIA, 'AG' + b.t)); return x !== null && x < T; });
-      pd[8] = n === 0 ? 'Not Assessed' : ((complete === n && overdue === 0) ? 'Yes' : 'Partial');
-      var covered = count(biaIds, function (b) { return DEP_ROWS.some(function (r) { return eqStr(g(S.DEP, 'C' + r), b.id); }); });
-      pd[9] = n === 0 ? 'Not Assessed' : (covered === n ? 'Yes' : 'Partial');
-      var done = count(RA_ROWS, function (r) { return g(S.RA, 'B' + r) !== '' && raComplete(r); });
-      pd[10] = raIds.length === 0 ? 'Not Assessed' : (done === raIds.length ? 'Yes' : 'Partial');
-      var ssComplete = count(SS_ROWS, function (r) {
-        return g(S.SS, 'C' + r) !== '' && g(S.SS, 'B' + r) !== '' && g(S.SS, 'F' + r) !== '' && g(S.SS, 'H' + r) !== '' && g(S.SS, 'I' + r) !== '' &&
-          g(S.SS, 'P' + r) !== '' && serial(g(S.SS, 'Q' + r)) !== null && serial(g(S.SS, 'R' + r)) !== null && g(S.SS, 'T' + r) !== '';
-      });
-      pd[11] = ssIds.length === 0 ? 'Not Assessed' : (ssComplete === ssIds.length ? 'Yes' : 'Partial');
-      pd[12] = ssIds.length === 0 ? 'Not Assessed' : (reqCount === 0 ? 'Partial' : (reqCount >= ssIds.length ? 'Yes' : 'Partial'));
-      var rrComplete = count(RR_ROWS, function (r) { return ['B', 'C', 'D', 'E', 'F'].every(function (c) { return g(S.RR, c + r) !== ''; }); });
-      var rrAmp = rrIds.length;
-      pd[13] = rrAmp === 0 ? 'Not Assessed' : (rrComplete === rrAmp ? 'Yes' : 'Partial');
-      var drComplete = count(range(5, 204), function (r) {
-        return g(S.DR, 'B' + r) !== '' && g(S.DR, 'E' + r) !== '' && g(S.DR, 'F' + r) !== '' &&
-          ['G', 'H', 'I', 'J'].every(function (c) { return isNum(g(S.DR, c + r)); }) &&
-          g(S.DR, 'K' + r) !== '' && g(S.DR, 'L' + r) !== '' && serial(g(S.DR, 'M' + r)) !== null && g(S.DR, 'N' + r) !== '' &&
-          g(S.DR, 'O' + r) !== '' && serial(g(S.DR, 'P' + r)) !== null;
-      });
-      var drCurrent = count(range(5, 204), function (r) { return g(S.DR, 'Q' + r) === 'Tested & Current'; });
-      pd[14] = drIds.length === 0 ? 'Not Assessed' : ((drComplete === drIds.length && drCurrent === drIds.length) ? 'Yes' : 'Partial');
-      var exComplete = count(RR_ROWS, function (r) {
-        return g(S.RR, 'B' + r) !== '' && g(S.RR, 'F' + r) !== '' && serial(g(S.RR, 'L' + r)) !== null && serial(g(S.RR, 'M' + r)) !== null && g(S.RR, 'N' + r) !== '';
-      });
-      var exOverdue = count(RR_ROWS, function (r) { return g(S.RR, 'P' + r) === 'Overdue'; });
-      pd[15] = rrAmp === 0 ? 'Not Assessed' : ((exComplete === rrAmp && exOverdue === 0) ? 'Yes' : 'Partial');
-      pd[16] = pdcaDocStatus('EXT-15');
-      pd[17] = pdcaDocStatus('EXT-16');
-      pd[18] = pdcaDocStatus('EXT-17');
-      var cancelled = count(capaIds, function (r) { return g(S.CAPA, 'M' + r) === 'Cancelled'; });
-      var closedComplete = count(CAPA_ROWS, function (r) {
-        return g(S.CAPA, 'B' + r) !== '' && g(S.CAPA, 'M' + r) === 'Closed' && serial(g(S.CAPA, 'E' + r)) !== null && g(S.CAPA, 'F' + r) !== '' &&
-          g(S.CAPA, 'K' + r) !== '' && serial(g(S.CAPA, 'L' + r)) !== null && g(S.CAPA, 'N' + r) !== '' && g(S.CAPA, 'O' + r) !== '' &&
-          serial(g(S.CAPA, 'P' + r)) !== null && g(S.CAPA, 'Q' + r) !== '' && serial(g(S.CAPA, 'R' + r)) !== null;
-      });
-      var capaOver = count(CAPA_ROWS, function (r) { return g(S.CAPA, 'T' + r) === 'Overdue'; });
-      var ineff = count(CAPA_ROWS, function (r) { return g(S.CAPA, 'Q' + r) === 'Ineffective'; });
-      pd[19] = capaIds.length === 0 ? 'Not Assessed' : ((capaOver > 0 || ineff > 0) ? 'No' : (closedComplete + cancelled === capaIds.length ? 'Yes' : 'Partial'));
-    })();
-    range(5, 19).forEach(function (r) {
-      set(S.PDCA, 'D' + r, pd[r]);
-      var E = g(S.PDCA, 'E' + r);
-      set(S.PDCA, 'F' + r, E !== '' ? E : (pd[r] === '' ? 'Not Assessed' : pd[r]));
-    });
-
-    // ---- 19 ISO 22301 map
-    var wiring = (opts.tpl && opts.tpl.isoMap) || { D: {}, Iformula: [] };
-    function fromPdca(row) {
-      var s = g(S.PDCA, 'F' + row);
-      if (/^#/.test(s)) return s;
-      return { Yes: 'In Place', Partial: 'Partial', No: 'Missing', 'Not Assessed': 'Not Assessed' }[s] || 'Not Assessed';
-    }
-    var roles = 0;
-    range(18, 25).forEach(function (r) { ['B', 'C', 'D'].forEach(function (c) { if (g(S.BUP, c + r) !== '') roles++; }); });
-    Object.keys(wiring.D).forEach(function (rs) {
-      var w = wiring.D[rs], r = +rs, s;
-      if (w.type === 'pdca') s = fromPdca(w.row);
-      else if (w.type === 'ext') s = isoDocStatus(w.ext);
-      else if (w.type === 'pdcaext') {
-        var p = g(S.PDCA, 'F' + w.row), e = isoDocStatus(w.ext);
-        if (/^#/.test(p)) s = p;
-        else if (p === 'Not Assessed' && e === 'Not Assessed') s = 'Not Assessed';
-        else if (p === 'No' || e === 'Missing') s = 'Missing';
-        else if (p === 'Yes' && (e === 'In Place' || e === 'N/A')) s = 'In Place';
-        else s = 'Partial';
-      } else if (w.type === 'roles51') s = roles === 0 ? 'Not Assessed' : (roles < 24 ? 'Partial' : 'In Place');
-      else if (w.type === 'roles53') {
-        var owned = count(SS_ROWS, function (q) { return g(S.SS, 'C' + q) !== '' && g(S.SS, 'P' + q) !== ''; });
-        s = (roles === 0 && ssIds.length === 0) ? 'Not Assessed' : ((roles === 24 && owned === ssIds.length) ? 'In Place' : 'Partial');
-      } else if (w.type === 'doc75') {
-        var meta = count(['B5', 'B6', 'B7', 'B8', 'B9'], function (a) { return g(S.DOC, a) !== ''; });
-        var sign = 0;
-        [13, 17, 21].forEach(function (rw) { ['B', 'C', 'D'].forEach(function (c) { if (g(S.DOC, c + rw) !== '') sign++; }); });
-        s = (meta === 0 && sign === 0) ? 'Not Assessed' : ((g(S.DOC, 'B8') === 'Published' && sign === 9) ? 'In Place' : 'Partial');
-      }
-      set(S.ISO, 'D' + r, s);
-    });
-    (wiring.Iformula || []).forEach(function (r) {
-      var b = str(g(S.ISO, 'B' + r));
-      set(S.ISO, 'I' + r, 'Complete when ' + b.charAt(0).toLowerCase() + b.slice(1) + '; evidence is approved, current and retrievable.');
-    });
 
     // ---- 02 Dashboard
     var D = {};
@@ -659,11 +522,6 @@
     D.exercisesOverdue = count(RR_ROWS, function (r) { return g(S.RR, 'P' + r) === 'Overdue'; });
     D.drSystems = drIds.length;
     D.drCurrent = count(range(5, 204), function (r) { return g(S.DR, 'Q' + r) === 'Tested & Current'; });
-    D.extNotEvidenced = count(DOC_ROWS, function (r) {
-      var a = String(g(S.DOCS, 'A' + r)), f = g(S.DOCS, 'F' + r);
-      return a.slice(0, 4) === 'EXT-' && ((f !== 'Evidence Filed' && f !== 'Not Applicable') || g(S.DOCS, 'S' + r) === 'Overdue');
-    });
-    D.isoMissing = count(range(5, 43), function (r) { return g(S.ISO, 'D' + r) === 'Missing'; });
     D.ssDuplicates = count(SS_ROWS, function (r) { return g(S.SS, 'U' + r) === 'DUPLICATE'; });
     function capaOpen(r) { var m = g(S.CAPA, 'M' + r); return m !== 'Closed' && m !== 'Cancelled'; }
     D.capaOpen = count(capaIds, capaOpen);
@@ -677,12 +535,12 @@
     [['B5', D.psInScope], ['B6', D.biaCompleted], ['B7', D.criticalPs], ['B8', D.psRiskAssoc], ['B9', D.dependencies], ['B10', D.biaOverdue],
       ['E5', D.risks], ['E6', D.critSig], ['E7', D.prio12], ['E8', D.ssDefined + ' / ' + D.ssOverdue], ['E9', D.reqRows],
       ['H5', D.bcpRows], ['H6', D.exercisesDone + ' / ' + D.exercisesOverdue], ['H7', D.drSystems + ' / ' + D.drCurrent],
-      ['H8', D.extNotEvidenced], ['H9', D.isoMissing], ['H10', D.ssDuplicates],
-      ['B30', D.capaOpen], ['E30', D.capaOverdue], ['H30', D.capaPending], ['B31', D.capaCritHigh]
+      ['H8', D.ssDuplicates],
+      ['B14', D.capaOpen], ['E14', D.capaOverdue], ['H14', D.capaPending], ['B15', D.capaCritHigh]
     ].forEach(function (x) { set(S.DASH, x[0], x[1]); });
     calc.register = register;
 
-    // ---- 21 Analysis
+    // ---- Recovery targets (website view; the Analysis sheet is not part of template v5)
     var analysis = [];
     PS_ROWS.filter(function (r) { return g(S.PS, 'I' + r) === 'Yes'; }).forEach(function (r) {
       var id = g(S.PS, 'B' + r);
@@ -696,7 +554,6 @@
         K: bt ? g(S.BIA, 'AE' + bt) : ''
       });
     });
-    analysis.forEach(function (row, i) { ['B', 'C', 'D', 'E', 'F', 'G', 'I', 'J', 'K'].forEach(function (c) { set(S.ANA, c + (2 + i), row[c]); }); });
     calc.analysis = analysis;
 
     // Lists used by dropdowns.
@@ -708,9 +565,8 @@
       rrIds: rrIds.map(function (r) { return g(S.RR, 'B' + r); }),
       drIds: drIds.map(function (r) { return g(S.DR, 'B' + r); }),
       depIds: DEP_ROWS.map(function (r) { return g(S.DEP, 'B' + r); }).filter(Boolean),
-      docIds: DOC_ROWS.map(function (r) { return g(S.DOCS, 'A' + r); }).filter(Boolean),
-      businessUnits: uniq(PS_ROWS.map(function (r) { return str(g(S.PS, 'C' + r)); }).filter(Boolean)).sort(),
-      divisionSites: uniq(PS_ROWS.map(function (r) { return str(g(S.PS, 'D' + r)); }).filter(Boolean)).sort()
+      businessUnits: uniq(PS_ROWS.map(function (r) { return str(g(S.PS, 'C' + r)); }).filter(Boolean)),
+      divisionSites: uniq(PS_ROWS.map(function (r) { return str(g(S.PS, 'D' + r)); }).filter(Boolean))
     };
     return calc;
   }

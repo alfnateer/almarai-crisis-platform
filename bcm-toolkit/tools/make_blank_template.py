@@ -8,7 +8,8 @@ Clears every input cell listed in inputs.json (the website's schema) except thos
 marked keep (default lists such as the Risk Assumption Map), drops the
 cached results of all formulas (and the cells their dynamic arrays spilled into),
 removes shared strings that are no longer used, removes the calculation chain and
-asks Excel to recalculate on open. Formulas, styles, validations, tables, comments
+asks Excel to recalculate on open. Organisation-specific package parts (sensitivity
+label, SharePoint metadata, add-in panes, saved-from path, last author) are removed. Formulas, styles, validations, tables, comments
 and sheet layout are kept byte-for-byte apart from those edits.
 """
 import json
@@ -49,6 +50,40 @@ def clear(c):
         c.remove(ch)
     for a in ("t", "cm", "vm"):
         c.attrib.pop(a, None)
+
+
+def make_generic(files):
+    """Drop organisation-specific package parts: the sensitivity label (bound to one
+    company's tenant), SharePoint content-type metadata, custom document properties and
+    add-in task panes bound to a stored file."""
+    drop = [n for n in files if n.startswith(("customXml/", "xl/webextensions/", "docMetadata/")) or n == "docProps/custom.xml"]
+    for n in drop:
+        del files[n]
+        part = re.escape(("/" + n).encode())
+        files["[Content_Types].xml"] = re.sub(rb'<Override[^>]*PartName="' + part + rb'"[^>]*/>', b"", files["[Content_Types].xml"])
+    rels = files["_rels/.rels"]
+    for target in (rb"docMetadata/LabelInfo\.xml", rb"xl/webextensions/taskpanes\.xml", rb"docProps/custom\.xml"):
+        rels = re.sub(rb'<Relationship[^>]*Target="/?' + target + rb'"[^>]*/>', b"", rels)
+    files["_rels/.rels"] = rels
+    files["xl/_rels/workbook.xml.rels"] = re.sub(rb'<Relationship[^>]*Target="\.\./customXml/[^"]*"[^>]*/>', b"", files["xl/_rels/workbook.xml.rels"])
+    # Footers stamped by a sensitivity label ("<Company> Information Classification: ...")
+    # become a neutral sheet-name / page footer; a corporate font becomes Calibri.
+    footers = 0
+    for n in list(files):
+        if n.startswith("xl/worksheets/sheet") and n.endswith(".xml"):
+            new, k = re.subn(rb"<oddFooter[^>]*>[^<]*Information Classification[^<]*</oddFooter>",
+                             b"<oddFooter>&amp;L&amp;A&amp;RPage &amp;P of &amp;N</oddFooter>", files[n])
+            files[n] = new
+            footers += k
+    fonts = re.findall(rb'<name val="([^"]+)"/>', files["xl/styles.xml"])
+    standard = {b"Calibri", b"Aptos", b"Arial", b"Tahoma", b"Segoe UI", b"Times New Roman", b"Cambria", b"Calibri Light", b"Aptos Narrow", b"Verdana"}
+    custom = sorted({f for f in fonts if f not in standard})
+    for f in custom:
+        files["xl/styles.xml"] = files["xl/styles.xml"].replace(b'<name val="' + f + b'"/>', b'<name val="Calibri"/>')
+    if drop:
+        print("removed organisation-specific parts:", ", ".join(sorted(drop)))
+    if footers or custom:
+        print("classification footers replaced: %d; fonts replaced with Calibri: %s" % (footers, b", ".join(custom).decode()))
 
 
 def main(src, inputs_path, dst):
@@ -156,6 +191,7 @@ def main(src, inputs_path, dst):
 
     if "docProps/core.xml" in files:
         files["docProps/core.xml"] = re.sub(rb"<cp:lastModifiedBy>.*?</cp:lastModifiedBy>", b"<cp:lastModifiedBy></cp:lastModifiedBy>", files["docProps/core.xml"])
+    make_generic(files)
 
     with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
         for info in zin.infolist():

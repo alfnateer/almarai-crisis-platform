@@ -1,29 +1,31 @@
 #!/usr/bin/env python3
-"""Apply the toolkit's formula fixes, dropdown colouring and missing-entry highlights.
+"""Turn the blank BCM Toolkit Template v5 into v5.1: fix its logic errors, make it
+generic, colour dropdowns and highlight missing critical entries.
 
-    python3 tools/fix_template.py template/in.xlsx template/out.xlsx
+    python3 tools/fix_template.py template/source/BCM_Toolkit_Template_v5_blank.xlsx template/BCM_Toolkit_Template_v5.1.xlsx
 
-Run on the blank template produced by make_blank_template.py. Every edit asserts that
-it found what it expects, so running it on a different workbook version fails loudly
-instead of producing a half-fixed file.
+Run on the blank produced by make_blank_template.py. Every edit asserts that it found
+what it expects, so running it on another workbook version fails loudly instead of
+producing a half-fixed file.
 
-Fixes (v0.2 defects):
-  15. BCM Risk Register  S header renamed (it shows New/Existing); T-W blank (columns no
-                         longer captured); X Source Completion computed from the Risk
-                         Assessment fields, so P/Q work again
-  17. PDCA               ID prefixes PS- / RR- (were P&S- / R&R-); step 6 computed from
-                         the Risk Assessment fields (was #REF!)
-  02. Dashboard          DR counters cover the whole IT DR register (were rows 5-34)
-  16. CAPA               Overdue ignores Cancelled CAPAs again
-  07. BIA                CEO MTPD blank instead of #N/A
-  14. R&R / 11. S&S      duplicate checks use SUMPRODUCT (COUNTIFS fails on text > 255 chars)
-  21. Analysis           exact-match lookups on every row, no #N/A; J/K show BIA RTO / RPO
-  10. Risk Assessment    stray =57/3 in G3 removed
+Logic fixes (v5 defects):
+  10. Risk Assessment   Risk Score was INDEX(#REF!, ...) after the ERM guidance sheet was
+                        removed - now Likelihood x Impact as the header states, so Risk
+                        Rating / BCP Priority / Register / Dashboard work again
+  10. Risk Assessment   Source Completion was an empty input - now calculated (the BCM
+                        Risk Register's escalation depends on it)
+  13. IT DR Register    empty leftover validation rule on column F removed
+  02. Dashboard         DR counters covered rows 5-34 only - now the whole register
+  05. Processes         Product & Services shows blank (not 0) when no product code
+  16. CAPA Register     Overdue counted Cancelled CAPAs
+  14. R&R / 11. S&S     duplicate checks used COUNTIFS, which fails on text > 255 chars
+Generic content:
+  "Annual Revenue (SAR)" -> local currency; "Food Safety" -> "Product / Service Safety";
+  company examples in the column notes replaced with neutral ones
 Additions:
-  - every dropdown (list validation) cell filled yellow
-  - red highlight on required entries left empty in a filled row, on RTO >= MTPD, and on
-    S&S requirement flags set to Yes without a matching row in 12. Requirements Register
-    (amber when rows exist but are not all Ready)
+  every dropdown (list validation) cell filled yellow; red highlight on required entries
+  left empty in a row in use, on RTO >= MTPD and on S&S requirement flags set to Yes
+  without a matching row in 12. Requirements Register (amber when not all Ready)
 """
 import copy
 import html
@@ -247,6 +249,50 @@ def add_cf(sheet, sqref, formula, dxf):
 
 
 # --------------------------------------------------------------------- main
+def replace_shared_string(files, old, new):
+    sst = files["xl/sharedStrings.xml"].decode("utf-8")
+    pat = re.compile(r"(<t(?: [^>]*)?>)" + re.escape(html.escape(old, quote=False)) + r"(</t>)")
+    sst, n = pat.subn(lambda m: m.group(1) + html.escape(new, quote=False) + m.group(2), sst)
+    assert n >= 1, old
+    files["xl/sharedStrings.xml"] = sst.encode("utf-8")
+
+
+def replace_comment(files, old, new):
+    n = 0
+    for name in files:
+        if re.match(r"xl/comments\d+\.xml$", name):
+            t = files[name].decode("utf-8")
+            if html.escape(old, quote=False) in t:
+                t = t.replace(html.escape(old, quote=False), html.escape(new, quote=False))
+                files[name] = t.encode("utf-8")
+                n += 1
+    assert n >= 1, old
+
+
+def set_table_formula(files, table_name, column, formula):
+    """Give a table column a calculated-column formula (adds or replaces it)."""
+    for name in files:
+        if not (name.startswith("xl/tables/") and name.endswith(".xml")):
+            continue
+        t = files[name].decode("utf-8")
+        if 'displayName="%s"' % table_name not in t and ' name="%s"' % table_name not in t:
+            continue
+        esc_col = re.escape(html.escape(column, quote=True))
+        m = re.search(r'<tableColumn [^>]*name="%s"[^>]*?(/>|>.*?</tableColumn>)' % esc_col, t, re.S)
+        assert m, (table_name, column)
+        el = m.group(0)
+        f = "<calculatedColumnFormula>%s</calculatedColumnFormula>" % html.escape(formula, quote=False)
+        if el.endswith("/>"):
+            new = el[:-2] + ">" + f + "</tableColumn>"
+        else:
+            new = re.sub(r"<calculatedColumnFormula[^>]*>.*?</calculatedColumnFormula>", lambda _: f, el, flags=re.S)
+            if new == el:
+                new = el.replace("</tableColumn>", f + "</tableColumn>")
+        files[name] = (t[:m.start()] + new + t[m.end():]).encode("utf-8")
+        return
+    raise AssertionError("table %s not found" % table_name)
+
+
 def main(src, dst):
     zin = zipfile.ZipFile(src)
     files = {n: zin.read(n) for n in zin.namelist()}
@@ -260,51 +306,60 @@ def main(src, dst):
     sheets = {name: Sheet(etree.fromstring(files[p])) for name, p in path.items()}
     S = lambda n: sheets[n]
     styles = Styles(files["xl/styles.xml"])
-    RA = "INDEX(RiskAssessment[],0,%d)"
-    # Risk Assessment fields that make a risk record complete: BU, Division, Dependency,
-    # Applicable P&S, Risk Assumption, ERM ref, Controls, Likelihood, Impact.
-    REQ_RA = [3, 4, 5, 6, 7, 9, 10, 11, 13]
 
-    # 15. BCM Risk Register ---------------------------------------------------
-    reg = S("15. BCM Risk Register")
-    set_text(reg, "S5", "Risks - New / Existing (auto)")
-    for col, label in (("T", "Assessment Date"), ("U", "Review Date"), ("V", "Approver"), ("W", "Evidence Reference")):
-        set_text(reg, col + "5", label + " (not captured in 10. Risk Assessment)")
-        assert reg.formula(col + "6").get("t") == "array"
-        reg.formula(col + "6").text = 'IF(_xlfn.ANCHORARRAY(A6)="","","")'
-    checks = ",".join('INDEX(INDEX(RiskAssessment[],0,%d),_xlpm.r)<>""' % k for k in REQ_RA)
-    assert reg.formula("X6").get("t") == "array"
-    reg.formula("X6").text = (
-        '_xlfn.MAP(_xlfn.ANCHORARRAY(A6),_xlfn.LAMBDA(_xlpm.id,IF(_xlpm.id="","",_xlfn.LET(_xlpm.r,'
-        '_xlfn.XMATCH(_xlpm.id,INDEX(RiskAssessment[],0,2)),IF(AND(' + checks + '),"Complete","Incomplete")))))')
+    # Generic wording ----------------------------------------------------------------
+    replace_shared_string(files, "Annual Revenue (SAR)", "Annual Revenue (local currency)")
+    replace_shared_string(files, "Food Safety", "Product / Service Safety")
+    replace_comment(files, "e.g. Protein, Bakery, International", "e.g. Retail, Manufacturing, International")
+    replace_comment(files, "e.g Protein, Bakery, International", "e.g. Retail, Manufacturing, International")
+    replace_comment(files, "e.g Poultry Farming, Poultry Manufacturing, Bakery Alkharj, Bakery Hail, Jordan, Egypt",
+                    "e.g. Head Office, Plant A, Plant B, Distribution Centre, Country X")
+    replace_comment(files, "e.g. Poultry Farming, Bakry Alkharj, Jordan", "e.g. Plant A, Distribution Centre, Country X")
 
-    # 17. PDCA ----------------------------------------------------------------
-    pdca = S("17. BCMS Progress (PDCA)")
-    for addr, a, b in (("D7", '"P&S-*"', '"PS-*"'), ("D13", '"R&R-*"', '"RR-*"'), ("D15", '"R&R-*"', '"RR-*"')):
-        f = pdca.formula(addr)
-        assert a in f.text, addr
-        f.text = f.text.replace(a, b)
-    done = ",".join('--(%s<>"")' % (RA % k) for k in REQ_RA)
-    pdca.formula("D10").text = (
-        '_xlfn.LET(_xlpm.ids,INDEX(RiskAssessment[],0,2),_xlpm.n,COUNTIF(_xlpm.ids,"RA-*"),'
-        '_xlpm.done,SUMPRODUCT(--(_xlpm.ids<>""),' + done + '),'
-        'IF(_xlpm.n=0,"Not Assessed",IF(_xlpm.done=_xlpm.n,"Yes","Partial")))')
+    # 10. Risk Assessment: Risk Score = Likelihood x Impact -----------------------------
+    ra = S("10. Risk Assessment")
+    score = 'IF(OR($K{r}="",$M{r}=""),"",$K{r}*$M{r})'
+    for r in range(5, 35):
+        f = ra.formula("O%d" % r)
+        assert f is not None and "#REF!" in f.text, r
+        f.text = score.format(r=r)
+    set_table_formula(files, "RiskAssessment", "Risk Score (Likelihood × Impact)", score.format(r=5))
 
-    # 02. Dashboard -------------------------------------------------------------
+    # 10. Risk Assessment: Source Completion calculated --------------------------------
+    done = ('IF($B{r}="","",IF(AND($C{r}<>"",$D{r}<>"",$E{r}<>"",$F{r}<>"",$G{r}<>"",$H{r}<>"",$J{r}<>"",'
+            '$K{r}<>"",$M{r}<>"",$U{r}<>"",ISNUMBER($V{r}),ISNUMBER($W{r}),$X{r}<>"",$Y{r}<>""),"Complete","Incomplete"))')
+    for r in range(5, 35):
+        c = ra.cell("Z%d" % r, create=True)
+        assert c.find(Q("f")) is None and c.find(Q("v")) is None, r
+        set_formula(ra, "Z%d" % r, done.format(r=r), keep_attrs=False)
+    set_table_formula(files, "RiskAssessment", "Source Completion", done.format(r=5))
+
+    # 13. IT DR Register: an empty leftover validation on F (no rule) ------------------
+    dr = S("13. IT DR Register")
+    dvs = [dv for dv in dr.doc.iter(Q("dataValidation")) if dv.get("sqref") == "F5:F204"]
+    assert len(dvs) == 1 and dvs[0].get("type") is None and dvs[0].find(Q("formula1")) is None
+    parent = dvs[0].getparent()
+    parent.remove(dvs[0])
+    parent.set("count", str(len(parent)))
+
+    # 02. Dashboard: DR counters over the whole register --------------------------------
     f = S("02. Dashboard").formula("H7")
     assert f.text.count("$34") == 2
     f.text = f.text.replace("$B$5:$B$34", "$B$5:$B$204").replace("$Q$5:$Q$34", "$Q$5:$Q$204")
 
-    # 16. CAPA: Overdue ignores Cancelled ---------------------------------------
+    # 05. Processes: blank product code -> blank (VLOOKUP of an empty cell can match an
+    # empty P&S row and show 0 outside Excel) ---------------------------------------------
+    pat, rep = r"^IFERROR\(VLOOKUP\(B(\d+),", r'IF(B\1="","",IFERROR(VLOOKUP(B\1,'
+    tail, tail_rep = r'\),""\)$', r'),""))'
+    sub_formulas(S("05. Processes & Activities"), "C", pat + r"(.*)" + tail, rep + r"\2" + tail_rep, expect_min=207)
+    sub_table(files, "ProcessesActivities", "Product &amp; Services", pat + r"(.*)" + tail, rep + r"\2" + tail_rep)
+
+    # 16. CAPA: Overdue ignores Cancelled -------------------------------------------------
     pat, rep = r'OR\(M(\d+)="Closed",L', r'OR(M\1="Closed",M\1="Cancelled",L'
     sub_formulas(S("16. CAPA Register"), "T", pat, rep)
     sub_table(files, "CAPARegister", "Overdue", pat, rep)
 
-    # 07. BIA: CEO MTPD without #N/A --------------------------------------------
-    n = sub_formulas(S("07. BIA"), "AB", r"^VLOOKUP\(F(\d+),(.*)\)$", r'IF($F\1="","",IFERROR(VLOOKUP($F\1,\2),""))')
-    assert n == 40, n
-
-    # Duplicate checks: SUMPRODUCT instead of COUNTIFS (255-character limit) ------
+    # Duplicate checks: SUMPRODUCT instead of COUNTIFS (255-character limit) -----------
     dup = r"COUNTIFS\((\$\w\$\d+:\$\w\$\d+),(\$\w\d+),(\$\w\$\d+:\$\w\$\d+),(\$\w\d+),(\$\w\$\d+:\$\w\$\d+),(\$\w\d+)\)"
     dup_rep = r"SUMPRODUCT(--(\1=\2),--(\3=\4),--(\5=\6))"
     sub_formulas(S("14. Recovery & Response"), "Q", dup, dup_rep)
@@ -312,44 +367,20 @@ def main(src, dst):
     sub_formulas(S("11. Strategies & Solutions"), "U", dup, dup_rep)
     sub_table(files, "StrategiesSolutions", "1:1 Check", dup, dup_rep)
 
-    # 21. Analysis ----------------------------------------------------------------
-    ana = S("21. Analysis")
-    set_text(ana, "J1", "BIA RTO (hours)")
-    set_text(ana, "K1", "BIA RPO (hours)")
-    def look(r, src_sheet, key_col, val_col, lo, hi):
-        # Exact match; a blank source cell stays blank (VLOOKUP would show 0).
-        x = "INDEX('%s'!$%s$%d:$%s$%d,MATCH($B%d,'%s'!$%s$%d:$%s$%d,0))" % (
-            src_sheet, val_col, lo, val_col, hi, r, src_sheet, key_col, lo, key_col, hi)
-        return 'IF($B%d="","",IFERROR(IF(%s="","",%s),""))' % (r, x, x)
-    for r in range(2, 47):
-        for col, src in (("C", "C"), ("D", "D"), ("E", "E"), ("F", "K"), ("G", "L")):
-            set_formula(ana, "%s%d" % (col, r), look(r, "04. Products & Services", "B", src, 4, 49), keep_attrs=False)
-        for col, src in (("I", "AA"), ("J", "AD"), ("K", "AE")):
-            set_formula(ana, "%s%d" % (col, r), look(r, "07. BIA", "F", src, 4, 285), keep_attrs=False)
-
-    # 10. Risk Assessment: stray formula -------------------------------------------
-    g3 = S("10. Risk Assessment").cell("G3")
-    assert g3 is not None and g3.find(Q("f")).text == "57/3"
-    g3.getparent().remove(g3)
-
-    # Dropdown cells in yellow ------------------------------------------------------
+    # Dropdown cells in yellow ------------------------------------------------------------
     painted = 0
     for name, sh in sheets.items():
-        ranges = []
-        for dv in sh.doc.iter(Q("dataValidation")):
-            if dv.get("type") == "list":
-                ranges.append(dv.get("sqref"))
+        ranges = [dv.get("sqref") for dv in sh.doc.iter(Q("dataValidation")) if dv.get("type") == "list"]
         for dv in sh.doc.iter("{%s}dataValidation" % NS_X14):
             if dv.get("type") == "list":
-                ref = dv.find("{%s}sqref" % NS_XM)
-                ranges.append(ref.text)
+                ranges.append(dv.find("{%s}sqref" % NS_XM).text)
         for sq in ranges:
             for addr in expand(sq):
                 c = sh.cell(addr, create=True)
                 c.set("s", str(styles.yellow(c.get("s"))))
                 painted += 1
 
-    # Missing-entry highlights ------------------------------------------------------
+    # Missing-entry highlights ------------------------------------------------------------
     red, amber = styles.red_dxf, styles.amber_dxf
     REQ = "'12. Requirements Register'"
     ss = S("11. Strategies & Solutions")
@@ -362,8 +393,8 @@ def main(src, dst):
         ("04. Products & Services", "C5:D49 G5:I49", "$E5", "C5"),
         ("05. Processes & Activities", "D5:E211 H5:I211", "$B5", "D5"),
         ("07. BIA", "V6:V285 AC6:AC285 AF6:AF285", "$E6", "V6"),
-        ("08. Dependency Register", "C5:C209 F5:F209 K5:L209", "$I5", "C5"),
-        ("10. Risk Assessment", "C5:E61 I5:K61 M5:M61", "$G5", "C5"),
+        ("08. Dependency Register", "C5:C204 F5:F204 K5:L204", "$I5", "C5"),
+        ("10. Risk Assessment", "C5:E34 J5:K34 M5:M34 U5:Y34", "$G5", "C5"),
         ("11. Strategies & Solutions", "H5:I64 P5:R64", "$B5", "H5"),
         ("12. Requirements Register", "C5:C304 E5:E304 K5:L304", "$F5", "C5"),
         ("13. IT DR Register", "C5:D204 G5:K204 M5:M204", "$E5", "C5"),
@@ -373,6 +404,7 @@ def main(src, dst):
     for name, sq, key, first in required:
         add_cf(S(name), sq, 'AND(%s<>"",%s="")' % (key, first), red)
     add_cf(S("07. BIA"), "AC6:AD285", "AND(ISNUMBER($AD6),ISNUMBER($AA6),$AD6>=$AA6)", red)
+    add_cf(ra, "Z5:Z34", '$Z5="Incomplete"', amber)
 
     for name, sh in sheets.items():
         files[path[name]] = etree.tostring(sh.doc, xml_declaration=True, encoding="UTF-8", standalone=True)

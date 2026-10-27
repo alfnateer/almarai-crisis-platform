@@ -13,7 +13,7 @@
   var IO = window.BCM_XLSX;
   var CK = window.BCM_CHECKS;
   var S = SC.S;
-  var STORE_KEY = 'almarai-bcm-toolkit-v0.2';
+  var STORE_KEY = 'bcm-toolkit-v5.1';
 
   var INPUTS = SC.inputCells(T);
   var SPEC = {};
@@ -25,8 +25,7 @@
   function freshState() {
     var values = {};
     INPUTS.forEach(function (c) {
-      var def = SHEET_DEF[c.sheet];
-      if (!def || !def.keepDefaults) return;
+      if (!c.keep) return;
       var v = (T.static[c.sheet] || {})[c.addr];
       if (v === undefined || v === null || v === '') return;
       (values[c.sheet] = values[c.sheet] || {})[c.addr] = v;
@@ -129,10 +128,10 @@
     if (typeof v === 'number') return Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)) : String(Math.round(v * 100) / 100);
     return String(v);
   }
-  var RED = ['Critical', 'Overdue', 'Red - Action Required', 'DUPLICATE', 'Failed', 'GAP - no DR', 'Missing', 'No', 'Incomplete',
+  var RED = ['Critical', 'Overdue', 'No - review', 'Red - Action Required', 'DUPLICATE', 'Failed', 'GAP - no DR', 'Missing', 'No', 'Incomplete',
     'RTO Not Complied', 'RPO Not Complied', 'Test Overdue', 'Retest Required', 'Recovery Not Compliant', 'Not Evidenced', 'Ineffective', '#VALUE!', '#N/A', '#REF!'];
   var AMBER = ['Significant', 'Partial', 'Amber - Attention', 'In Progress', 'Incomplete Exercise', 'Result Required', 'Pass with Findings',
-    'Not Tested', 'Recovery Targets Incomplete', 'Review Date Missing', 'Due \u226430 Days', 'Moderate', 'Planned', 'Scheduled', 'Not Scheduled', 'Under Evaluation'];
+    'Not Tested', 'Recovery Targets Incomplete', 'Review Date Missing', 'Due \u226430 Days', 'RTO not set', 'Moderate', 'Planned', 'Scheduled', 'Not Scheduled', 'Under Evaluation'];
   var GREEN = ['Low', 'Yes', 'Complete', 'Completed', 'Passed', 'OK', 'On Track', 'Green - On Track', 'Tested & Current', 'RTO Complied',
     'RPO Complied', 'Current', 'In Place', 'MONITOR', 'N/A'];
   function tone(v) {
@@ -153,16 +152,17 @@
     clearTimeout(el._t);
     el._t = setTimeout(function () { el.className = 'toast'; }, kind === 'err' ? 15000 : 4200);
   }
-  function engineList(col) {
-    var out = [], st = T.static[S.ENG] || {};
-    for (var r = 4; r <= 12; r++) { var v = st[col + r]; if (v !== undefined && v !== '') out.push(String(v)); }
+  // Support lists live in 03. Business Unit Profile (rows 138+), so edits on the
+  // Support Lists page change the dropdowns here and in the exported workbook.
+  var LIST_DEF = {};
+  SC.LISTS.forEach(function (l) { LIST_DEF[l.name] = l; });
+  function listValues(name) {
+    var l = LIST_DEF[name];
+    if (!l) return null;
+    var out = [];
+    for (var r = l.first; r <= l.last; r++) { var v = book.get(S.BUP, l.col + r); if (v !== '') out.push(String(v)); }
     return out;
   }
-  var LISTS = {
-    lstYN: engineList('A'), lstScore: engineList('C'), lstDepCat: engineList('D'), lstCorpCrit: engineList('E'),
-    lstStrategy: engineList('H'), lstTestResult: engineList('I'), lstDRStrategy: engineList('J'), lstSPOF: engineList('L'),
-    lstReqCat: engineList('M')
-  };
   function nonEmpty(sheet, col, a, b) {
     var out = [];
     for (var r = a; r <= b; r++) { var v = book.get(sheet, col + r); if (v !== '') out.push(String(v)); }
@@ -171,7 +171,8 @@
   // Options for a dropdown (static list name, array, or dynamic source by row).
   function optionsFor(src, sheet, row) {
     if (Array.isArray(src)) return src;
-    if (LISTS[src]) return LISTS[src];
+    var lv = listValues(src);
+    if (lv) return lv;
     var L = calc.lists;
     switch (src) {
       case 'psIds': case 'biaIds': case 'riskIds': case 'ssIds': case 'rrIds': case 'businessUnits': case 'divisionSites':
@@ -190,11 +191,15 @@
         return assetList(book.get(S.DR, 'C' + row), book.get(S.DR, 'D' + row));
       case 'riskAssumptions':
         var cat = book.get(S.RA, 'E' + row);
-        var idx = LISTS.lstDepCat.indexOf(cat);
-        return idx < 0 ? [] : nonEmpty(S.MAP, SC.numToCol(3 + idx), 5, 24);
+        // Column of 09. Risk Assumption Map whose header (row 4) is the category.
+        for (var mc = 3; mc <= 9; mc++) {
+          var hd = book.get(S.MAP, SC.numToCol(mc) + '4');
+          if (cat !== '' && String(hd).toLowerCase() === String(cat).toLowerCase()) return nonEmpty(S.MAP, SC.numToCol(mc), 5, 24);
+        }
+        return [];
       case 'capaSourceRef':
         var t = book.get(S.CAPA, 'C' + row);
-        return { Risk: L.riskIds, 'Recovery Plan': L.rrIds, 'IT DR': L.drIds, 'ISO Document': L.docIds, BIA: L.biaIds, Dependency: L.depIds }[t] || [];
+        return { Risk: L.riskIds, 'Recovery Plan': L.rrIds, 'IT DR': L.drIds, BIA: L.biaIds, Dependency: L.depIds }[t] || [];
     }
     return [];
   }
@@ -320,7 +325,9 @@
 
   // ------------------------------------------------------------------ pages
   function pageHeader(def, extra) {
-    return '<header class="page-head"><div class="eyebrow">Sheet ' + esc(def.nav) + ' \u00b7 ' + esc(def.sheet) + '</div>' +
+    var inBook = T.sheets.indexOf(def.sheet) >= 0;
+    var eyebrow = def.kind === 'lists' ? 'Workbook support lists \u00b7 ' + esc(def.sheet) + ' rows 137+' : (inBook ? 'Sheet ' + esc(def.nav) + ' \u00b7 ' + esc(def.sheet) : 'Website page - not exported');
+    return '<header class="page-head"><div class="eyebrow">' + eyebrow + '</div>' +
       '<h1>' + esc(def.title) + '</h1>' + (def.iso ? '<p class="iso">' + esc(def.iso) + '</p>' : '') +
       (def.note ? '<p class="note">' + esc(def.note) + '</p>' : '') + (extra || '') + '</header>';
   }
@@ -332,11 +339,10 @@
       case 'table': html = renderTable(def); break;
       case 'grid': html = renderGrid(def); break;
       case 'bia': html = renderBia(def); break;
-      case 'pdca': html = renderPdca(def); break;
-      case 'isomap': html = renderIsoMap(def); break;
-      case 'reference': html = pageHeader(def) + '<div class="card ref-wrap">' + (T.reference[def.sheet] || '') + '</div>'; break;
+      case 'lists': html = renderLists(def); break;
+      case 'help': html = renderHelp(def); break;
       case 'checks': html = renderChecks(def); break;
-      case 'view': html = def.id === 'dash' ? renderDashboard(def) : (def.id === 'reg' ? renderRegister(def) : renderAnalysis(def)); break;
+      case 'view': html = def.id === 'dash' ? renderDashboard(def) : (def.id === 'reg' ? renderRegister(def) : renderTargets(def)); break;
     }
     var main = document.getElementById('page');
     main.innerHTML = html;
@@ -548,7 +554,7 @@
   function renderBia(def) {
     var html = pageHeader(def, legend() +
       '<p class="note">One block per in-scope product / service, in the order of 04. Products &amp; Services (BIA Order). Score each impact type 1-5 across the nine horizons; ' +
-      'MTPD is the first horizon where any impact reaches 4. Keep RTO below MTPD. Anchors are in 20. ERM RA Guidance.</p>');
+      'MTPD is the first horizon where any impact reaches 4. Keep RTO below MTPD. Scoring anchors are on the <a href="#help">How to use</a> page.</p>');
     var blocks = [];
     for (var k = 1; k <= SC.BIA.blocks; k++) if (val(S.BIA, 'E' + SC.BIA.top(k)) !== '') blocks.push(k);
     if (!blocks.length) {
@@ -605,42 +611,6 @@
     return out.join(', ');
   }
 
-  // ---- PDCA
-  function renderPdca(def) {
-    var html = pageHeader(def, '<p class="note">Auto Status is derived from the registers. Use Manual Override only with evidence; Final = override if set, otherwise auto.</p>');
-    html += '<div class="card flush"><div class="table-wrap"><table class="sheet-table"><thead><tr><th>Phase</th><th>Step</th><th>BCMS Element</th><th class="auto-h">Auto Status</th><th>Manual Override</th><th class="auto-h">Final</th><th>What it means / evidence</th><th>Owner &amp; Next Action</th></tr></thead><tbody>';
-    var phase = '';
-    for (var r = def.rows.first; r <= def.rows.last; r++) {
-      var a = book.get(def.sheet, 'A' + r);
-      if (a) phase = a;
-      html += '<tr><td class="label-cell phase-' + esc(String(phase).toLowerCase()) + '">' + esc(a) + '</td><td class="num">' + esc(book.get(def.sheet, 'B' + r)) + '</td>' +
-        '<td class="label-cell">' + esc(book.get(def.sheet, 'C' + r)) + '</td>' + calcCell(def.sheet, 'D' + r, true) +
-        '<td>' + inputHtml(def.sheet, 'E' + r, { type: 'select', options: SC.PDCA_OVERRIDE }, r) + '</td>' + calcCell(def.sheet, 'F' + r, true) +
-        '<td class="fixed">' + esc(book.get(def.sheet, 'G' + r)) + '</td><td>' + inputHtml(def.sheet, 'H' + r, { type: 'textarea' }, r) + '</td></tr>';
-    }
-    return html + '</tbody></table></div></div>';
-  }
-
-  // ---- ISO 22301 map
-  function renderIsoMap(def) {
-    var sections = SC.isoSectionRows(T);
-    var formulas = {};
-    (T.formulas[def.sheet] || []).forEach(function (a) { formulas[a] = 1; });
-    var html = pageHeader(def, legend()) + '<div class="card flush"><div class="table-wrap tall"><table class="sheet-table"><thead>' + headerRows(def.cols, false, def.sheet, def.rows.first) + '</thead><tbody>';
-    for (var r = def.rows.first; r <= def.rows.last; r++) {
-      if (sections[r]) { html += '<tr class="section-row"><td colspan="' + (def.cols.length + 1) + '">' + esc(sections[r]) + '</td></tr>'; continue; }
-      html += '<tr>';
-      def.cols.forEach(function (c) {
-        var addr = c.c + r;
-        if (c.c === 'D' || (c.c === 'I' && formulas[addr])) html += calcCell(def.sheet, addr, c.c === 'D');
-        else if (SPEC[def.sheet + '!' + addr]) html += '<td>' + inputHtml(def.sheet, addr, c, r) + '</td>';
-        else html += '<td class="fixed">' + esc(fmt(book.get(def.sheet, addr))) + '</td>';
-      });
-      html += '<td></td></tr>';
-    }
-    return html + '</tbody></table></div></div>';
-  }
-
   // ---- Dashboard
   function tile(label, value, sub, warn) {
     return '<div class="tile' + (warn ? ' warn' : '') + '"><div class="tile-label">' + esc(label) + '</div><div class="tile-value" data-dash>' + esc(value) + '</div>' + (sub ? '<div class="tile-sub">' + esc(sub) + '</div>' : '') + '</div>';
@@ -648,6 +618,8 @@
   function renderDashboard(def) {
     var D = calc.dashboard;
     var bu = book.get(S.BUP, 'B6') || book.get(S.BUP, 'B5');
+    var raIncomplete = 0;
+    for (var ri = 5; ri <= 34; ri++) if (val(S.RA, 'Z' + ri) === 'Incomplete') raIncomplete++;
     var html = '<header class="page-head"><div class="eyebrow">Sheet 02 \u00b7 02. Dashboard</div><h1>BCM Programme Dashboard' + (bu ? ' - ' + esc(bu) : '') + '</h1>' +
       '<p class="iso">Live counters - review weekly - red items need action, not explanation | ISO 22301: 9.1</p></header>';
     html += '<section class="card intro"><div><h2>Fill the toolkit online, export the workbook</h2><p>Work through the sheets in the left menu (same order as the Excel toolkit). ' +
@@ -664,8 +636,8 @@
       tile('Solutions defined / overdue', D.ssDefined + ' / ' + D.ssOverdue, '', D.ssOverdue > 0) + tile('Requirement rows (5b)', D.reqRows) + '</div></section>';
     html += '<section class="card"><h2>Governance &amp; Compliance</h2><div class="tiles">' +
       tile('BCP rows (RR plan)', D.bcpRows) + tile('Exercises done / overdue', D.exercisesDone + ' / ' + D.exercisesOverdue, '', D.exercisesOverdue > 0) +
-      tile('DR systems / tested-current', D.drSystems + ' / ' + D.drCurrent) + tile('External evidence not evidenced', D.extNotEvidenced, '', D.extNotEvidenced > 0) +
-      tile('ISO clauses missing', D.isoMissing, '', D.isoMissing > 0) + tile('Duplicate S&S mappings', D.ssDuplicates, '', D.ssDuplicates > 0) + '</div></section>';
+      tile('DR systems / tested-current', D.drSystems + ' / ' + D.drCurrent) + tile('Duplicate S&S mappings', D.ssDuplicates, '', D.ssDuplicates > 0) +
+      tile('Risk assessments incomplete', raIncomplete, '', raIncomplete > 0) + '</div></section>';
     html += '<section class="card"><h2>Corrective Action &amp; Improvement</h2><div class="tiles">' +
       tile('Open CAPAs', D.capaOpen) + tile('Overdue CAPAs', D.capaOverdue, '', D.capaOverdue > 0) +
       tile('Effectiveness pending', D.capaPending) + tile('Critical / High open', D.capaCritHigh, '', D.capaCritHigh > 0) + '</div></section>';
@@ -673,9 +645,7 @@
     html += '<section class="card"><h2>Data quality <a class="muted small-link" href="#checks">open Checks &amp; Gaps \u2192</a></h2><div class="tiles">' +
       tile('Missing critical entries', redN, '', redN > 0) + tile('Needs attention', amberN) + tile('Suggested CAPAs not yet raised', sugN, '', sugN > 0) + '</div></section>';
     html += '</div><div class="dash-grid two">';
-    html += '<section class="card"><h2>PDCA snapshot</h2><table class="mini"><tbody>';
-    for (var r = 5; r <= 19; r++) html += '<tr><td>' + esc(book.get(S.PDCA, 'C' + r)) + '</td><td>' + badge(val(S.PDCA, 'F' + r)) + '</td></tr>';
-    html += '</tbody></table></section>';
+    html += '<section class="card"><h2>Status snapshot</h2>' + statusSnapshot() + '</section>';
     html += '<section class="card"><h2>Risk heat map <span class="muted">(residual, from 10. Risk Assessment)</span></h2>' + heatMap() + '</section></div>';
     return html;
   }
@@ -688,13 +658,15 @@
     var lik = ['Almost Certain', 'Frequent', 'Occasional', 'Infrequent', 'Rare'];
     var imp = ['Negligible', 'Minor', 'Medium', 'Critical', 'Catastrophic'];
     var html = '<table class="heat"><tbody>';
+    // ratings: >= 20 Critical, >= 12 Significant, >= 7 Moderate, else Low
     for (var l = 5; l >= 1; l--) {
       html += '<tr><th>' + lik[5 - l] + '</th>';
       for (var i = 1; i <= 5; i++) {
-        var ref = Number(book.get(S.ERM, SC.numToCol(4 + i) + (84 - l)));
+        // Risk score = likelihood x impact, rated as in 10. Risk Assessment (P).
+        var ref = l * i;
         var t = ref >= 20 ? 'red' : (ref >= 12 ? 'orange' : (ref >= 7 ? 'yellow' : 'green'));
         var n = counts[l + '-' + i] || 0;
-        html += '<td class="h-' + t + '" title="Risk reference ' + ref + '">' + (n ? '<b>' + n + '</b>' : '') + '<span>' + ref + '</span></td>';
+        html += '<td class="h-' + t + '" title="Score ' + ref + ' (' + lik[5 - l] + ' x ' + imp[i - 1] + ')">' + (n ? '<b>' + n + '</b>' : '') + '<span>' + ref + '</span></td>';
       }
       html += '</tr>';
     }
@@ -718,21 +690,82 @@
     });
     return html + '</tbody></table></div></div>';
   }
-  function renderAnalysis(def) {
-    var labels = { B: 'P&S ID', C: 'Business Unit', D: 'Division / Site', E: 'Product / Service', F: 'Corporate MBCO (if provided)', G: 'Corporate MTPD (if provided)',
-      I: book.get(S.ANA, 'I1') || 'BIA MTPD', J: book.get(S.ANA, 'J1') || 'Dependency RTO', K: book.get(S.ANA, 'K1') || 'Dependency RPO' };
-    var cols = ['B', 'C', 'D', 'E', 'F', 'G', 'I', 'J', 'K'];
-    var html = pageHeader(def, '<p class="note">Read-only. Columns J and K reproduce the workbook formulas, which read the first dependency row of each P&amp;S in 08. Dependency Register (SPOF and Owner columns).</p>');
-    html += '<div class="card flush"><div class="table-wrap tall"><table class="sheet-table"><thead><tr><th class="num">Sl #</th>';
-    cols.forEach(function (c) { html += '<th style="min-width:120px">' + esc(labels[c]) + '</th>'; });
-    html += '</tr></thead><tbody>';
-    if (!calc.analysis.length) html += '<tr><td colspan="10" class="muted">No in-scope products / services yet.</td></tr>';
+  function renderTargets(def) {
+    var cols = [['B', 'P&S ID'], ['C', 'Business Unit'], ['D', 'Division / Site'], ['E', 'Product / Service'], ['F', 'Corporate MBCO'], ['G', 'Corporate MTPD'],
+      ['I', 'BIA MTPD (h)'], ['J', 'RTO (h)'], ['K', 'RPO (h)']];
+    var html = pageHeader(def, '<p class="note">Read-only summary of the recovery targets of every in-scope product / service: corporate targets from 04. Products &amp; Services ' +
+      'and the MTPD, RTO and RPO of its BIA block in 07. BIA. RTO must be shorter than MTPD.</p>');
+    html += '<div class="card flush"><div class="table-wrap tall"><table class="sheet-table"><thead><tr><th class="num">#</th>';
+    cols.forEach(function (c) { html += '<th style="min-width:110px">' + esc(c[1]) + '</th>'; });
+    html += '<th style="min-width:130px">RTO within MTPD</th></tr></thead><tbody>';
+    if (!calc.analysis.length) html += '<tr><td colspan="' + (cols.length + 2) + '" class="muted">No in-scope products / services yet.</td></tr>';
     calc.analysis.forEach(function (row, i) {
       html += '<tr><td class="num">' + (i + 1) + '</td>';
-      cols.forEach(function (c) { html += '<td class="auto">' + esc(fmt(row[c])) + '</td>'; });
-      html += '</tr>';
+      cols.forEach(function (c) { html += '<td class="auto">' + esc(fmt(row[c[0]])) + '</td>'; });
+      var ok = typeof row.I === 'number' && typeof row.J === 'number' ? (row.J < row.I ? 'Yes' : 'No - review') : (row.J === '' ? 'RTO not set' : '');
+      html += '<td class="auto">' + badge(ok) + '</td></tr>';
     });
     return html + '</tbody></table></div></div>';
+  }
+  function statusSnapshot() {
+    function counts(sheet, col, a, b) {
+      var o = {};
+      for (var r = a; r <= b; r++) { var v = val(sheet, col + r); if (v !== '') o[v] = (o[v] || 0) + 1; }
+      return o;
+    }
+    var groups = [['Strategies (11)', counts(S.SS, 'T', 5, 64)], ['Exercises (14)', counts(S.RR, 'P', 5, 104)], ['IT DR (13)', counts(S.DR, 'Q', 5, 204)],
+      ['Risk assessment source (10)', counts(S.RA, 'Z', 5, 34)], ['CAPA (16)', counts(S.CAPA, 'M', 6, 105)]];
+    var html = '<table class="mini"><tbody>';
+    groups.forEach(function (gp) {
+      var keys = Object.keys(gp[1]);
+      html += '<tr><td>' + esc(gp[0]) + '</td><td>' + (keys.length ? keys.map(function (k) { return badge(k) + ' <b>' + gp[1][k] + '</b>'; }).join(' ') : '<span class="muted">-</span>') + '</td></tr>';
+    });
+    return html + '</tbody></table>';
+  }
+
+  // ---- Support lists (03. Business Unit Profile rows 138+)
+  function renderLists(def) {
+    var html = pageHeader(def, legend());
+    html += '<div class="lists-grid">';
+    SC.LISTS.forEach(function (l) {
+      html += '<section class="card"><h2>' + esc(l.label) + ' <span class="muted">' + esc(l.name) + '</span>' + (l.core ? ' <span class="badge amber">used in formulas</span>' : '') + '</h2>';
+      for (var r = l.first; r <= l.last; r++) html += '<div class="list-row">' + inputHtml(def.sheet, l.col + r, { type: l.numeric ? 'number' : 'text' }, r) + '</div>';
+      html += '</section>';
+    });
+    var U = SC.DURATION_UNITS;
+    html += '<section class="card"><h2>Duration units <span class="muted">DurationUnits</span> <span class="badge amber">used in formulas</span></h2>' +
+      '<p class="muted">Unit word and hours per unit, used to convert entries such as "3 days" into hours (MBCO / MTPD / RTO).</p><table class="mini"><tbody>';
+    for (var d = U.first; d <= U.last; d++) {
+      html += '<tr><td>' + inputHtml(def.sheet, U.unitCol + d, {}, d) + '</td><td>' + inputHtml(def.sheet, U.hoursCol + d, { type: 'number' }, d) + '</td></tr>';
+    }
+    return html + '</tbody></table></section></div>';
+  }
+
+  // ---- Help
+  function renderHelp(def) {
+    var h = pageHeader(def);
+    h += '<section class="card help"><h2>Workflow</h2><ol>' +
+      '<li><b>Plan - context &amp; scope:</b> complete <a href="#bup">03. Business Unit Profile</a>, then list products and services in <a href="#ps">04</a> and mark those in scope. Each in-scope item gets a BIA block in <a href="#bia">07. BIA</a>.</li>' +
+      '<li><b>Analyse:</b> list activities in <a href="#proc">05</a> and applications / equipment in <a href="#app">06</a>; score impacts in <a href="#bia">07</a>; record dependencies in <a href="#dep">08</a>.</li>' +
+      '<li><b>Assess risk:</b> pick assumptions from <a href="#map">09. Risk Assumption Map</a> in <a href="#ra">10. Risk Assessment</a>, rate residual likelihood and impact, and complete owner, dates, approver and evidence so the source is <i>Complete</i>.</li>' +
+      '<li><b>Treat:</b> define strategies in <a href="#ss">11</a>; every requirement flag set to <i>Yes</i> needs rows in <a href="#req">12. Requirements Register</a>. Record IT DR in <a href="#dr">13</a> and response &amp; recovery plans and exercises in <a href="#rr">14</a>.</li>' +
+      '<li><b>Check &amp; improve:</b> review <a href="#reg">15. BCM Risk Register</a>, <a href="#checks">Checks &amp; Gaps</a> and raise corrective actions in <a href="#capa">16. CAPA Register</a> (suggested CAPAs can be added with one click).</li></ol></section>';
+    h += '<section class="card help"><h2>Colours</h2>' + legend() + '<p>Amber cells need attention (for example requirements captured but not all Ready, or a risk assessment that is still Incomplete). The exported workbook shows the same red / amber highlights.</p></section>';
+    h += '<section class="card help"><h2>Risk scoring</h2><p>Risk score = residual likelihood (1-5) &times; residual impact (1-5). Rating: <span class="badge red">Critical</span> 20-25 (BCP priority 1), ' +
+      '<span class="badge orange">Significant</span> 12-19 (priority 2), <span class="badge amber">Moderate</span> 7-11 (priority 3), <span class="badge green">Low</span> 1-6 (priority 4).</p>' +
+      '<table class="mini"><tbody><tr><th>Score</th><th>Likelihood</th><th>Impact</th></tr>' +
+      [['1', 'Rare', 'Negligible'], ['2', 'Infrequent', 'Minor'], ['3', 'Occasional', 'Medium'], ['4', 'Frequent', 'Critical'], ['5', 'Almost Certain', 'Catastrophic']]
+        .map(function (x) { return '<tr><td class="num">' + x[0] + '</td><td>' + x[1] + '</td><td>' + x[2] + '</td></tr>'; }).join('') + '</tbody></table>' +
+      '<p><b>BIA impact scores</b> (07. BIA) use the same 1-5 scale per impact type and horizon; MTPD is the first horizon where any impact reaches 4.</p></section>';
+    h += '<section class="card help"><h2>Durations</h2><p>MBCO, MTPD and RTO accept a number of hours or "&lt;number&gt; &lt;unit&gt;", for example <i>6 hours</i>, <i>3 days</i>, <i>2 weeks</i>, <i>1 month</i>. ' +
+      'Units are defined on the <a href="#lists">Support Lists</a> page.</p></section>';
+    h += '<section class="card help"><h2>Excel import / export</h2><ul>' +
+      '<li><b>Export to Excel</b> writes your entries into the embedded template <i>' + esc(T.source) + '</i>; formulas, dropdowns, formats and highlights stay intact and Excel recalculates everything on opening.</li>' +
+      '<li><b>Import Excel</b> reads any filled copy of this toolkit (same sheet layout). Files protected with a sensitivity label / IRM encryption must be saved unprotected first.</li>' +
+      '<li><b>Blank template</b> downloads the empty workbook.</li>' +
+      '<li><b>Paste from Excel:</b> copy a block of cells, click the first target cell and press Ctrl+V. Dropdown values are matched, dates are recognised, automatic columns are skipped.</li>' +
+      '<li>Data stays in this browser only. Use <b>Backup</b> to save a .json copy and <b>Restore</b> to load it on another computer.</li></ul></section>';
+    return h;
   }
 
   // ------------------------------------------------------------------ live refresh
@@ -960,8 +993,25 @@
     // A single value typed into a text box keeps the normal paste behaviour.
     if (data.length === 1 && data[0].length === 1 && el.tagName !== 'SELECT' && el.type !== 'date') return;
     var table = el.closest('table');
-    if (!table) return;
     e.preventDefault();
+    if (!table) {
+      // Form fields and support lists: fill the fields of this section in order,
+      // so a column (or row) copied from Excel lands field after field.
+      var box = el.closest('section') || document.getElementById('page');
+      var fields = Array.prototype.slice.call(box.querySelectorAll('[data-k]'));
+      var at = fields.indexOf(el), n = { done: 0, bad: 0, offList: 0, overflow: 0, skipped: 0 };
+      [].concat.apply([], data).forEach(function (raw, i) {
+        var f = fields[at + i];
+        if (!f) { if (raw.trim() !== '') n.overflow++; return; }
+        var res = normalizeFor(f, raw);
+        if (res.error) { n.bad++; return; }
+        if (res.offList) n.offList++;
+        var q = f.getAttribute('data-k').split('|');
+        setValue(q[0], q[1], res.value);
+        n.done++;
+      });
+      return pasteDone(n, 'beyond the last field of this section');
+    }
     var td = el.closest('td'), tr = el.closest('tr');
     var cIdx = Array.prototype.indexOf.call(tr.children, td);
     var def = SC.byId(current);
@@ -995,18 +1045,21 @@
         done++;
       });
     });
+    pasteDone({ done: done, skipped: skipped, bad: bad, offList: offList, overflow: overflow }, 'beyond the last row of this sheet');
+  }
+  function pasteDone(n, overflowText) {
     recompute();
     var y = window.scrollY;
     renderPage();
     window.scrollTo(0, y);
     updateCounts();
-    var msg = 'Pasted ' + done + ' cell' + (done === 1 ? '' : 's');
+    var msg = 'Pasted ' + n.done + ' cell' + (n.done === 1 ? '' : 's');
     var notes = [];
-    if (skipped) notes.push(skipped + ' on automatic/label columns skipped');
-    if (bad) notes.push(bad + ' not a valid date/number');
-    if (offList) notes.push(offList + ' not in the dropdown list (kept, marked "not in list")');
-    if (overflow) notes.push(overflow + ' beyond the last row of this sheet');
-    toast(msg + (notes.length ? ' - ' + notes.join('; ') : ''), bad || overflow ? 'err' : 'ok');
+    if (n.skipped) notes.push(n.skipped + ' on automatic/label columns skipped');
+    if (n.bad) notes.push(n.bad + ' not a valid date/number');
+    if (n.offList) notes.push(n.offList + ' not in the dropdown list (kept, marked "not in list")');
+    if (n.overflow) notes.push(n.overflow + ' ' + overflowText);
+    toast(msg + (notes.length ? ' - ' + notes.join('; ') : ''), n.bad || n.overflow ? 'err' : 'ok');
   }
 
   // ------------------------------------------------------------------ actions
@@ -1036,7 +1089,7 @@
       try {
         var blob = await IO.exportWorkbook(window.BCM_TEMPLATE_B64, INPUTS, function (sheet, addr) { return book.get(sheet, addr); });
         var bu = fileSafe(book.get(S.BUP, 'B7') || book.get(S.BUP, 'B6'));
-        download(blob, 'Almarai_BCM_Toolkit_v0.2.1' + (bu ? '_' + bu : '') + '_' + stamp() + '.xlsx');
+        download(blob, 'BCM_Toolkit_v5.1' + (bu ? '_' + bu : '') + '_' + stamp() + '.xlsx');
         toast('Exported. Excel recalculates all formulas when you open the file.', 'ok');
       } catch (err) {
         console.error(err);
@@ -1053,8 +1106,12 @@
           if (!known) throw new Error('No toolkit sheets found in this file.');
           if (!confirm('Replace the data in this browser with ' + n + ' values from "' + file.name + '"?' +
             (res.missingSheets.length ? '\n\nSheets not found in the file (left empty): ' + res.missingSheets.join(', ') : ''))) return;
+          // Template defaults (support lists, risk assumption map) stay where the file has none.
           state = freshState();
-          state.values = res.values;
+          Object.keys(res.values).forEach(function (sh) {
+            var dst = state.values[sh] = state.values[sh] || {};
+            Object.keys(res.values[sh]).forEach(function (a) { dst[a] = res.values[sh][a]; });
+          });
           state.importedFrom = file.name;
           save();
           recompute();
@@ -1126,5 +1183,5 @@
     setSaved(state.updated ? 'Saved in this browser' : 'Not saved yet');
   });
 
-  window.BCM_APP = { getState: function () { return state; }, getCalc: function () { return calc; }, actions: actions };
+  window.BCM_APP = { getState: function () { return state; }, getCalc: function () { return calc; }, val: val, actions: actions };
 })();

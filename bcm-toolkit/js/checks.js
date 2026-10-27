@@ -20,8 +20,8 @@
     { id: 'ps', sheet: S.PS, rows: range(5, 49), key: 'E', cols: ['C', 'D', 'G', 'H', 'I'] },
     { id: 'proc', sheet: S.PROC, rows: range(5, 211), key: 'B', cols: ['D', 'E', 'H', 'I'] },
     { id: 'bia', sheet: S.BIA, rows: range(1, BIA.blocks).map(BIA.top), key: 'E', cols: ['V', 'AC', 'AF'], keyAuto: true },
-    { id: 'dep', sheet: S.DEP, rows: range(5, 209), key: 'I', cols: ['C', 'F', 'K', 'L'] },
-    { id: 'ra', sheet: S.RA, rows: range(5, 61), key: 'G', cols: ['C', 'D', 'E', 'I', 'J', 'K', 'M'] },
+    { id: 'dep', sheet: S.DEP, rows: range(5, 204), key: 'I', cols: ['C', 'F', 'K', 'L'] },
+    { id: 'ra', sheet: S.RA, rows: range(5, 34), key: 'G', cols: ['C', 'D', 'E', 'J', 'K', 'M', 'U', 'V', 'W', 'X', 'Y'] },
     { id: 'ss', sheet: S.SS, rows: range(5, 64), key: 'B', cols: ['H', 'I', 'P', 'Q', 'R'] },
     { id: 'req', sheet: S.REQ, rows: range(5, 304), key: 'F', cols: ['C', 'E', 'K', 'L'] },
     { id: 'dr', sheet: S.DR, rows: range(5, 204), key: 'E', cols: ['C', 'D', 'G', 'H', 'I', 'J', 'K', 'M'] },
@@ -99,7 +99,7 @@
   function findings(val, todayIso) {
     var out = [];
     function riskOf(riskId) {
-      for (var r = 5; r <= 61; r++) if (val(S.RA, 'B' + r) === riskId) return r;
+      for (var r = 5; r <= 34; r++) if (val(S.RA, 'B' + r) === riskId) return r;
       return null;
     }
     function sevForRisk(riskId, fallback) {
@@ -129,7 +129,7 @@
         finding: ssId + ': strategy implementation overdue (due ' + val(S.SS, 'R' + row) + ')' });
     });
     // Critical / significant risks without a strategy.
-    range(5, 61).forEach(function (row) {
+    range(5, 34).forEach(function (row) {
       var id = val(S.RA, 'B' + row), p = val(S.RA, 'P' + row);
       if (id !== '' && (p === 'Critical' || p === 'Significant') && val(S.RA, 'S' + row) === 'Not Created') {
         add({ type: 'Risk', ref: id, riskId: id, severity: p === 'Critical' ? 'Critical' : 'High',
@@ -158,16 +158,16 @@
         finding: id + ' ' + val(S.BIA, 'E' + t) + ': BIA review overdue (valid until ' + val(S.BIA, 'AG' + t) + ')' });
     });
     // Single points of failure.
-    range(5, 209).forEach(function (row) {
+    range(5, 204).forEach(function (row) {
       var id = val(S.DEP, 'B' + row);
       if (id !== '' && val(S.DEP, 'K' + row) === 'Yes') add({ type: 'Dependency', ref: id, severity: 'Medium', owner: val(S.DEP, 'L' + row),
         finding: id + ': single point of failure - ' + val(S.DEP, 'I' + row) + ' (' + val(S.DEP, 'D' + row) + ')' });
     });
-    // ISO documents past their review date.
-    range(5, 24).forEach(function (row) {
-      var ref = val(S.DOCS, 'A' + row);
-      if (ref !== '' && val(S.DOCS, 'S' + row) === 'Overdue') add({ type: 'ISO Document', ref: ref, severity: 'Medium', owner: val(S.DOCS, 'E' + row),
-        finding: ref + ' ' + val(S.DOCS, 'C' + row) + ': review date passed' });
+    // Risk assessments past their review date (10. Risk Assessment W).
+    range(5, 34).forEach(function (row) {
+      var id = val(S.RA, 'B' + row), due = ENGINE.serial(val(S.RA, 'W' + row));
+      if (id !== '' && due !== null && due < ENGINE.serial(todayIso)) add({ type: 'Risk', ref: id, riskId: id, severity: sevForRisk(id), owner: val(S.RA, 'U' + row),
+        finding: id + ': risk assessment review overdue (review date ' + val(S.RA, 'W' + row) + ')' });
     });
     return out;
   }

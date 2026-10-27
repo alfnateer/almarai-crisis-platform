@@ -1,4 +1,4 @@
-/* BCM Implementation Toolkit - Almarai palette, aligned with the crisis platform. */
+/* BCM Implementation Toolkit - palette aligned with the crisis platform. */
 *,*::before,*::after{box-sizing:border-box}
 :root{
   --navy:#003399;--navy-dark:#002266;--green:#00A651;--green-dark:#008040;
@@ -201,7 +201,7 @@ table.heat td b{font-size:1.15rem}
   .table-wrap.tall{max-height:none}
 }
 
-/* Dropdown cells are yellow, as in the Excel template (v0.2.1). */
+/* Dropdown cells are yellow, as in the Excel template (v5.1). */
 select.in,.in[data-opt],.sheet-table select.in,.sheet-table .in[data-opt]{background:#FFFF99;border-color:#e0d870}
 .sheet-table select.in:focus,.sheet-table .in[data-opt]:focus{background:#FFFFB8}
 /* Missing critical entries (red) and attention (amber) - same rules as the template's highlights. */
@@ -218,3 +218,15 @@ select.in,.in[data-opt],.sheet-table select.in,.sheet-table .in[data-opt]{backgr
 .card-pad{padding:14px 16px 0}
 .small-link{font-size:.78rem;font-weight:500;margin-left:8px}
 a.btn{text-decoration:none;display:inline-block}
+
+/* Support lists and help pages */
+.lists-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.lists-grid .card h2{font-size:.95rem;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.lists-grid .list-row{margin:4px 0}
+.lists-grid .list-row .in,.lists-grid table.mini .in{width:100%}
+.lists-grid table.mini td:last-child{text-align:left}
+.help ol,.help ul{padding-left:20px;line-height:1.6}
+.help li{margin:4px 0}
+.help table.mini{max-width:420px}
+.help table.mini th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)}
+.help table.mini td:last-child{text-align:left}
