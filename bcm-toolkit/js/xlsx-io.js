@@ -202,7 +202,25 @@
    * Read the input cells from a toolkit workbook (ArrayBuffer).
    * Returns {values: {sheet: {addr: value}}, missingSheets: [...]}
    */
+  // Encrypted workbooks are OLE compound files instead of zip packages.
+  function encryptionError(buffer) {
+    var b = new Uint8Array(buffer);
+    if (!(b[0] === 0xD0 && b[1] === 0xCF && b[2] === 0x11 && b[3] === 0xE0)) return null;
+    var marker = 'DRMEncryptedDataSpace', utf16 = [];
+    for (var i = 0; i < marker.length; i++) utf16.push(marker.charCodeAt(i), 0);
+    outer: for (var p = 0; p < b.length - utf16.length; p++) {
+      for (var j = 0; j < utf16.length; j++) if (b[p + j] !== utf16[j]) continue outer;
+      return new Error('This workbook is protected by a Microsoft 365 sensitivity label (encrypted), so only Excel signed in ' +
+        'with your account can open it. In Excel, save an unencrypted copy (change the sensitivity label to one without ' +
+        'encryption, or File > Info > Protect Workbook > Unrestricted Access) and import that copy.');
+    }
+    return new Error('This workbook is password-protected or in the old .xls format. In Excel, remove the password ' +
+      '(File > Info > Protect Workbook > Encrypt with Password, clear it) or save as .xlsx, then import that copy.');
+  }
+
   async function importWorkbook(buffer, cells) {
+    var encrypted = encryptionError(buffer);
+    if (encrypted) throw encrypted;
     var zip = await root.JSZip.loadAsync(buffer);
     if (!zip.file('xl/workbook.xml')) throw new Error('This file is not an Excel workbook (.xlsx).');
     var paths = await sheetPaths(zip);

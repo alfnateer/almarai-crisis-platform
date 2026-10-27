@@ -121,7 +121,7 @@
     el.textContent = msg;
     el.className = 'toast show ' + (kind || '');
     clearTimeout(el._t);
-    el._t = setTimeout(function () { el.className = 'toast'; }, 4200);
+    el._t = setTimeout(function () { el.className = 'toast'; }, kind === 'err' ? 15000 : 4200);
   }
   function engineList(col) {
     var out = [], st = T.static[S.ENG] || {};
