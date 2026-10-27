@@ -3,7 +3,7 @@
 
 Run after replacing template/BCM_Implementation_Toolkit_*.xlsx:
 
-    python3 tools/build_template_data.py template/Almarai_BCM_Toolkit_Template_v0.2.xlsx
+    python3 tools/build_template_data.py template/Almarai_BCM_Toolkit_Template_v0.2.1.xlsx
 
 Writes:
   js/template.js       - the workbook itself (base64), used as the export template

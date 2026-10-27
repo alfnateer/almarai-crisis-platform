@@ -73,8 +73,6 @@
     var k = String(s || '').replace(/ /g, '').replace(/-/g, '').replace(/\//g, '').toLowerCase();
     return k === 'data' ? 'datainfo' : k;
   }
-  // Excel's COUNTIFS returns #VALUE! when a criteria text is longer than 255 characters.
-  function tooLong() { for (var i = 0; i < arguments.length; i++) if (String(arguments[i]).length > 255) return true; return false; }
   function wild(prefix) { return function (v) { return typeof v === 'string' && v.indexOf(prefix) === 0; }; }
   function count(arr, pred) { var n = 0; arr.forEach(function (x) { if (pred(x)) n++; }); return n; }
   function range(a, b) { var o = []; for (var i = a; i <= b; i++) o.push(i); return o; }
@@ -181,7 +179,7 @@
       set(S.BIA, 'X' + t, pr ? str(g(S.PS, 'K' + pr)) : '');
       var f = g(S.BIA, 'F' + t);
       var pi = psRowById(f);
-      set(S.BIA, 'AB' + t, f === '' ? '' : (pi ? g(S.PS, 'M' + pi) : ''));
+      set(S.BIA, 'AB' + t, f === '' || !pi ? '' : g(S.PS, 'M' + pi));
     }
     // P&S O: BU BIA MTPD from the matching BIA block.
     PS_ROWS.forEach(function (r) {
@@ -270,6 +268,10 @@
       // "Risks": New when there is no ERM reference, otherwise Existing (every table row).
       set(S.RA, 'U' + r, g(S.RA, 'I' + r) === 'No applicable ERM reference' ? 'New' : 'Existing');
     });
+    // A risk record is complete when BU, Division, Dependency, Applicable P&S, Risk Assumption,
+    // ERM ref, Controls, Likelihood and Impact are filled (template v0.2.1).
+    var RA_REQUIRED = ['C', 'D', 'E', 'F', 'G', 'I', 'J', 'K', 'M'];
+    function raComplete(r) { return RA_REQUIRED.every(function (c) { return g(S.RA, c + r) !== ''; }); }
     function raRowById(id) {
       if (blank(id)) return null;
       for (var i = 0; i < RA_ROWS.length; i++) if (eqStr(g(S.RA, 'B' + RA_ROWS[i]), id)) return RA_ROWS[i];
@@ -291,7 +293,6 @@
     SS_ROWS.forEach(function (r) {
       var B = g(S.SS, 'B' + r);
       if (B === '') { set(S.SS, 'U' + r, ''); return; }
-      if (tooLong(B, g(S.SS, 'G' + r), g(S.SS, 'H' + r))) { set(S.SS, 'U' + r, '#VALUE!'); return; }
       var n = count(SS_ROWS, function (q) { return eqStr(g(S.SS, 'B' + q), B) && eqStr(g(S.SS, 'G' + q), g(S.SS, 'G' + r)) && eqStr(g(S.SS, 'H' + q), g(S.SS, 'H' + r)); });
       set(S.SS, 'U' + r, n > 1 ? 'DUPLICATE' : 'OK');
     });
@@ -354,7 +355,6 @@
     RR_ROWS.forEach(function (r) {
       var C = g(S.RR, 'C' + r);
       if (C === '') { set(S.RR, 'Q' + r, ''); return; }
-      if (tooLong(C, g(S.RR, 'D' + r), g(S.RR, 'E' + r))) { set(S.RR, 'Q' + r, '#VALUE!'); return; }
       var n = count(RR_ROWS, function (q) { return eqStr(g(S.RR, 'C' + q), C) && eqStr(g(S.RR, 'D' + q), g(S.RR, 'D' + r)) && eqStr(g(S.RR, 'E' + q), g(S.RR, 'E' + r)); });
       set(S.RR, 'Q' + r, n > 1 ? 'DUPLICATE' : 'OK');
     });
@@ -419,17 +419,14 @@
       var exStat = RR_ROWS.filter(function (q) { return g(S.RR, 'B' + q) !== '' && ss.some(function (s) { return eqStr(s, g(S.RR, 'C' + q)); }); }).map(function (q) { return g(S.RR, 'P' + q); });
       row.O = exStat.length ? worst(exStat, EX_ORD) : 'Not Created';
       row.R = str(g(S.RA, 'R' + r));
-      // v0.2 removed Risk Assessment columns 22-26, so these lookups are #REF! in the workbook;
-      // column 21 (Risk Owner) now returns the "Risks" (New / Existing) column.
+      // S shows the Risks (New / Existing) column; T-W are not captured in 10. Risk Assessment.
       row.S = str(g(S.RA, 'U' + r));
-      row.T = row.U = row.V = row.W = row.X = '#REF!';
+      row.T = row.U = row.V = row.W = '';
+      row.X = raComplete(r) ? 'Complete' : 'Incomplete';
       var critical = row.G === 'Critical' || row.H === 1;
       var unrated = row.G === '';
       var dueOver = row.N !== '' && serial(row.N) < T;
-      if (row.X === '#REF!') {
-        row.P = '#REF!';
-        row.Q = '#REF!';
-      } else if (row.X === 'Incomplete') {
+      if (row.X === 'Incomplete') {
         row.P = 'Red - Action Required';
         row.Q = 'ESCALATE: Source risk record incomplete';
       } else {
@@ -495,7 +492,7 @@
       var E = serial(g(S.CAPA, 'E' + r)), R = serial(g(S.CAPA, 'R' + r));
       set(S.CAPA, 'S' + r, g(S.CAPA, 'E' + r) === '' ? '' : (E === null ? '#VALUE!' : (g(S.CAPA, 'R' + r) !== '' ? (R === null ? '#VALUE!' : R - E) : T - E)));
       var M = g(S.CAPA, 'M' + r), L = serial(g(S.CAPA, 'L' + r));
-      set(S.CAPA, 'T' + r, (M === 'Closed' || g(S.CAPA, 'L' + r) === '') ? '' : ((L !== null && L < T) ? 'Overdue' : 'On Track'));
+      set(S.CAPA, 'T' + r, (M === 'Closed' || M === 'Cancelled' || g(S.CAPA, 'L' + r) === '') ? '' : ((L !== null && L < T) ? 'Overdue' : 'On Track'));
     });
 
     // ---- 18 ISO Docs & Records
@@ -553,8 +550,7 @@
       var fields = count(range(5, 14), function (r) { return g(S.BUP, 'B' + r) !== ''; });
       pd[5] = (scope === 0 && fields === 0) ? 'Not Assessed' : ((scope > 0 && fields === 10) ? 'Yes' : 'Partial');
       pd[6] = pdcaDocStatus('EXT-01');
-      // v0.2 counts IDs starting "P&S-" but IDs are "PS-###", so this is always Not Assessed.
-      var ps = count(PS_ROWS, function (r) { return /^P&S-/.test(g(S.PS, 'B' + r)); });
+      var ps = count(PS_ROWS, function (r) { return /^PS-/.test(g(S.PS, 'B' + r)); });
       var crit = count(PS_ROWS, function (r) { return g(S.PS, 'J' + r) === 'Yes'; });
       pd[7] = ps === 0 ? 'Not Assessed' : (crit === 0 ? 'Partial' : 'Yes');
       var n = biaIds.length;
@@ -563,8 +559,8 @@
       pd[8] = n === 0 ? 'Not Assessed' : ((complete === n && overdue === 0) ? 'Yes' : 'Partial');
       var covered = count(biaIds, function (b) { return DEP_ROWS.some(function (r) { return eqStr(g(S.DEP, 'C' + r), b.id); }); });
       pd[9] = n === 0 ? 'Not Assessed' : (covered === n ? 'Yes' : 'Partial');
-      // Reads Risk Assessment column 26, removed in v0.2 -> #REF!.
-      pd[10] = '#REF!';
+      var done = count(RA_ROWS, function (r) { return g(S.RA, 'B' + r) !== '' && raComplete(r); });
+      pd[10] = raIds.length === 0 ? 'Not Assessed' : (done === raIds.length ? 'Yes' : 'Partial');
       var ssComplete = count(SS_ROWS, function (r) {
         return g(S.SS, 'C' + r) !== '' && g(S.SS, 'B' + r) !== '' && g(S.SS, 'F' + r) !== '' && g(S.SS, 'H' + r) !== '' && g(S.SS, 'I' + r) !== '' &&
           g(S.SS, 'P' + r) !== '' && serial(g(S.SS, 'Q' + r)) !== null && serial(g(S.SS, 'R' + r)) !== null && g(S.SS, 'T' + r) !== '';
@@ -572,8 +568,7 @@
       pd[11] = ssIds.length === 0 ? 'Not Assessed' : (ssComplete === ssIds.length ? 'Yes' : 'Partial');
       pd[12] = ssIds.length === 0 ? 'Not Assessed' : (reqCount === 0 ? 'Partial' : (reqCount >= ssIds.length ? 'Yes' : 'Partial'));
       var rrComplete = count(RR_ROWS, function (r) { return ['B', 'C', 'D', 'E', 'F'].every(function (c) { return g(S.RR, c + r) !== ''; }); });
-      // v0.2 counts IDs starting "R&R-" but IDs are "RR-###", so 13 and 15 stay Not Assessed.
-      var rrAmp = count(RR_ROWS, function (r) { return /^R&R-/.test(g(S.RR, 'B' + r)); });
+      var rrAmp = rrIds.length;
       pd[13] = rrAmp === 0 ? 'Not Assessed' : (rrComplete === rrAmp ? 'Yes' : 'Partial');
       var drComplete = count(range(5, 204), function (r) {
         return g(S.DR, 'B' + r) !== '' && g(S.DR, 'E' + r) !== '' && g(S.DR, 'F' + r) !== '' &&
@@ -662,9 +657,8 @@
     D.bcpRows = count(RR_ROWS, function (r) { return /^SS-/.test(g(S.RR, 'C' + r)); });
     D.exercisesDone = count(RR_ROWS, function (r) { return serial(g(S.RR, 'M' + r)) !== null; });
     D.exercisesOverdue = count(RR_ROWS, function (r) { return g(S.RR, 'P' + r) === 'Overdue'; });
-    // v0.2 dashboard counts DR rows 5-34 only.
-    D.drSystems = count(range(5, 34), function (r) { return /^DR-/.test(g(S.DR, 'B' + r)); });
-    D.drCurrent = count(range(5, 34), function (r) { return g(S.DR, 'Q' + r) === 'Tested & Current'; });
+    D.drSystems = drIds.length;
+    D.drCurrent = count(range(5, 204), function (r) { return g(S.DR, 'Q' + r) === 'Tested & Current'; });
     D.extNotEvidenced = count(DOC_ROWS, function (r) {
       var a = String(g(S.DOCS, 'A' + r)), f = g(S.DOCS, 'F' + r);
       return a.slice(0, 4) === 'EXT-' && ((f !== 'Evidence Filed' && f !== 'Not Applicable') || g(S.DOCS, 'S' + r) === 'Overdue');
@@ -693,19 +687,16 @@
     PS_ROWS.filter(function (r) { return g(S.PS, 'I' + r) === 'Yes'; }).forEach(function (r) {
       var id = g(S.PS, 'B' + r);
       var bt = biaTopByPs(id);
-      var dep = null;
-      DEP_ROWS.forEach(function (q) { if (dep === null && id !== '' && eqStr(g(S.DEP, 'E' + q), id)) dep = q; });
       analysis.push({
         B: id, C: str(g(S.PS, 'C' + r)), D: str(g(S.PS, 'D' + r)), E: str(g(S.PS, 'E' + r)),
         F: str(g(S.PS, 'K' + r)), G: str(g(S.PS, 'L' + r)),
-        // v0.2 has an approximate-match lookup in I2 only; the column is left blank here.
-        I: '',
-        // Plain VLOOKUPs: a blank source cell comes back as 0, a missing P&S as #N/A.
-        J: dep ? (g(S.DEP, 'K' + dep) === '' ? 0 : g(S.DEP, 'K' + dep)) : '#N/A',
-        K: dep ? (g(S.DEP, 'L' + dep) === '' ? 0 : g(S.DEP, 'L' + dep)) : '#N/A'
+        // BIA MTPD, RTO and RPO (hours) of the P&S's BIA block.
+        I: bt ? g(S.BIA, 'AA' + bt) : '',
+        J: bt ? g(S.BIA, 'AD' + bt) : '',
+        K: bt ? g(S.BIA, 'AE' + bt) : ''
       });
     });
-    analysis.forEach(function (row, i) { ['B', 'C', 'D', 'E', 'F', 'G', 'J', 'K'].forEach(function (c) { set(S.ANA, c + (2 + i), row[c]); }); });
+    analysis.forEach(function (row, i) { ['B', 'C', 'D', 'E', 'F', 'G', 'I', 'J', 'K'].forEach(function (c) { set(S.ANA, c + (2 + i), row[c]); }); });
     calc.analysis = analysis;
 
     // Lists used by dropdowns.

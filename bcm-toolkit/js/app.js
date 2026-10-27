@@ -11,6 +11,7 @@
   var SC = window.BCM_SCHEMA;
   var EN = window.BCM_ENGINE;
   var IO = window.BCM_XLSX;
+  var CK = window.BCM_CHECKS;
   var S = SC.S;
   var STORE_KEY = 'almarai-bcm-toolkit-v0.2';
 
@@ -76,7 +77,36 @@
     scheduleCalc();
   }
 
-  var calc = EN.compute(book, { tpl: T });
+  var calc, issues = [], issueAt = {};
+  // Recalculate everything and re-run the data-quality checks.
+  function recompute() {
+    calc = EN.compute(book, { tpl: T });
+    issues = CK.missing(val).concat(offListIssues());
+    issueAt = {};
+    issues.forEach(function (x) { var k = x.sheet + '|' + x.addr; if (!issueAt[k] || x.level === 'red') issueAt[k] = x; });
+  }
+  // Dropdown cells holding a value that is not in their list (e.g. typed or imported text).
+  function offListIssues() {
+    var out = [];
+    SC.sheets.forEach(function (def) {
+      if (def.kind !== 'table' || !def.usedBy) return;
+      var cols = def.cols.filter(function (c) { return !c.auto && !c.fixed && c.options && !c.free; });
+      if (!cols.length) return;
+      for (var r = def.first; r <= def.last; r++) {
+        cols.forEach(function (c) {
+          var v = book.get(def.sheet, c.c + r);
+          if (v === '') return;
+          var opts = optionsFor(c.options, def.sheet, r).map(String);
+          if (opts.length && opts.indexOf(String(v)) < 0) {
+            var idc = def.cols[0] && def.cols[0].auto ? def.cols[0].c : null;
+            out.push({ id: def.id, sheet: def.sheet, addr: c.c + r, row: r, level: 'red', ref: (idc && val(def.sheet, idc + r)) || 'row ' + r,
+              what: c.label + ': "' + v + '" is not in the dropdown list' });
+          }
+        });
+      }
+    });
+    return out;
+  }
   function val(sheet, addr) {
     var c = calc[sheet];
     if (c && addr in c) return c[addr];
@@ -85,7 +115,7 @@
   var calcTimer = null;
   function scheduleCalc() {
     clearTimeout(calcTimer);
-    calcTimer = setTimeout(function () { calc = EN.compute(book, { tpl: T }); refreshCalc(); }, 120);
+    calcTimer = setTimeout(function () { recompute(); refreshCalc(); }, 120);
   }
 
   // ------------------------------------------------------------------ utils
@@ -218,6 +248,7 @@
 
   // ------------------------------------------------------------------ validation
   function today() { return EN.todaySerial(); }
+  function todayIso() { return EN.isoFromSerial(EN.todaySerial()); }
   function validate(def, col, row) {
     if (!def || !col || col.auto || col.fixed) return '';
     var sheet = def.sheet, addr = col.c + row;
@@ -271,12 +302,15 @@
       if (d.kind === 'table' && !d.fixedRows) n = usedRows(d).length || '';
       else if (d.id === 'bia') n = calc.lists.biaIds.length || '';
       else if (d.id === 'reg') n = calc.register.length || '';
+      else if (d.id === 'checks') n = issues.filter(function (x) { return x.level === 'red'; }).length || '';
+      if (d.id === 'capa') { var sug = CK.newFindings(val, todayIso()).length; if (sug) n = (n ? n + ' \u00b7 ' : '') + sug + ' new'; }
       el.textContent = n;
     });
   }
   function go(id) {
     if (!SC.byId(id)) id = 'dash';
     current = id;
+    if (location.hash.slice(1) !== id && history.replaceState) history.replaceState(null, '', '#' + id);
     document.querySelectorAll('.nav-item').forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-id') === id); });
     document.body.classList.remove('nav-open');
     renderPage();
@@ -301,6 +335,7 @@
       case 'pdca': html = renderPdca(def); break;
       case 'isomap': html = renderIsoMap(def); break;
       case 'reference': html = pageHeader(def) + '<div class="card ref-wrap">' + (T.reference[def.sheet] || '') + '</div>'; break;
+      case 'checks': html = renderChecks(def); break;
       case 'view': html = def.id === 'dash' ? renderDashboard(def) : (def.id === 'reg' ? renderRegister(def) : renderAnalysis(def)); break;
     }
     var main = document.getElementById('page');
@@ -396,6 +431,7 @@
   function renderTable(def) {
     var rows = visibleRows(def);
     var html = pageHeader(def, legend());
+    if (def.id === 'capa') html += capaPanel();
     html += '<div class="card flush"><div class="table-wrap tall"><table class="sheet-table records" data-sheet="' + esc(def.id) + '"><thead>' +
       headerRows(def.cols, !!def.numCol, def.sheet, def.first) + '</thead><tbody>';
     rows.forEach(function (r) {
@@ -416,8 +452,81 @@
     html += '</div>';
     return html;
   }
+  // ---- CAPA suggestions (pre-population from toolkit findings)
+  function capaPanel() {
+    var list = CK.newFindings(val, todayIso());
+    if (!list.length) return '<div class="card ok-note">No new findings to raise. Suggested CAPAs appear here when the registers show gaps ' +
+      '(requirement flags not captured, overdue strategies, unmitigated critical risks, failed or overdue exercises, DR gaps, overdue BIA reviews, single points of failure).</div>';
+    var html = '<section class="card suggest"><div class="suggest-head"><div><h2>Suggested CAPAs from toolkit findings (' + list.length + ')</h2>' +
+      '<p class="muted">Pre-filled with source, finding, severity, owner where known, target date and status Open. Add them, then complete root cause and corrective action.</p></div>' +
+      '<div class="suggest-actions"><button class="btn" data-capa-add="selected">Add selected</button><button class="btn primary" data-capa-add="all">Add all ' + list.length + '</button></div></div>' +
+      '<div class="table-wrap" style="max-height:300px"><table class="sheet-table"><thead><tr><th style="width:34px"><input type="checkbox" data-capa-all checked></th><th>Source Type</th><th>Source Ref</th><th>Finding</th><th>Severity</th><th>Owner</th><th>Target Date</th></tr></thead><tbody>';
+    list.forEach(function (f, i) {
+      html += '<tr><td><input type="checkbox" data-capa-pick="' + i + '" checked></td><td>' + esc(f.type) + '</td><td>' + esc(f.ref) + '</td><td>' + esc(f.finding) +
+        '</td><td>' + badge(f.severity === 'Critical' || f.severity === 'High' ? f.severity : f.severity) + '</td><td>' + esc(f.owner || '') + '</td><td>' + esc(f.target) + '</td></tr>';
+    });
+    return html + '</tbody></table></div></section>';
+  }
+  function addCapas(list) {
+    var C = S.CAPA, added = 0, full = 0;
+    var inputCols = SC.byId('capa').cols.filter(function (c) { return !c.auto; }).map(function (c) { return c.c; });
+    list.forEach(function (f) {
+      var row = null;
+      for (var r = 6; r <= 105 && row === null; r++) {
+        if (inputCols.every(function (c) { return book.get(C, c + r) === ''; })) row = r;
+      }
+      if (row === null) { full++; return; }
+      var put = { C: f.type, D: f.ref, E: todayIso(), F: f.finding, G: f.severity, K: f.owner || '', L: f.target, M: 'Open',
+        U: f.riskId || '', V: f.ssId || '', W: f.rrId || '', X: 'Suggested by toolkit check' };
+      Object.keys(put).forEach(function (c) { if (put[c] !== '') setValue(C, c + row, put[c]); });
+      added++;
+    });
+    recompute();
+    var y = window.scrollY;
+    renderPage();
+    window.scrollTo(0, y);
+    updateCounts();
+    toast('Added ' + added + ' CAPA' + (added === 1 ? '' : 's') + (full ? ' - ' + full + ' not added: CAPA register is full (100 rows)' : ''), full ? 'err' : 'ok');
+  }
+
+  // ---- Checks & gaps page
+  function renderChecks(def) {
+    var red = issues.filter(function (x) { return x.level === 'red'; }), amber = issues.filter(function (x) { return x.level === 'amber'; });
+    var sug = CK.newFindings(val, todayIso());
+    var html = pageHeader(def, '<p class="note">Red: a critical entry is missing in a row that is in use, or a requirement flag is Yes without a matching row in 12. Requirements Register. ' +
+      'Amber: requirements captured but not all Ready. The same rules highlight the cells in red / amber on each page and in the exported Excel file.</p>');
+    html += '<div class="tiles wide">' + tile('Missing critical entries', red.length, '', red.length > 0) + tile('Needs attention', amber.length) +
+      tile('Suggested CAPAs not yet raised', sug.length, '', sug.length > 0) + '</div>';
+    if (sug.length) html += '<p><a class="btn primary" href="#capa">Review and add suggested CAPAs \u2192</a></p>';
+    var bySheet = {};
+    issues.forEach(function (x) { (bySheet[x.sheet] = bySheet[x.sheet] || []).push(x); });
+    if (!issues.length) return html + '<div class="card ok-note">No gaps found. Every row in use has its critical entries.</div>';
+    Object.keys(bySheet).sort().forEach(function (sheet) {
+      var l = bySheet[sheet];
+      html += '<section class="card flush"><h2 class="card-pad">' + esc(sheet) + ' <span class="muted">(' + l.length + ')</span></h2><div class="table-wrap" style="max-height:360px"><table class="sheet-table"><thead><tr>' +
+        '<th style="width:90px">Level</th><th style="width:110px">Record</th><th style="width:70px">Cell</th><th>What is missing</th><th style="width:80px"></th></tr></thead><tbody>';
+      l.forEach(function (x) {
+        html += '<tr><td>' + (x.level === 'red' ? '<span class="badge red">Missing</span>' : '<span class="badge amber">Attention</span>') + '</td><td>' + esc(x.ref) + '</td><td>' + esc(x.addr) +
+          '</td><td>' + esc(x.what) + '</td><td><a href="#" data-goto="' + esc(x.id + '|' + x.sheet + '|' + x.addr) + '">Go to</a></td></tr>';
+      });
+      html += '</tbody></table></div></section>';
+    });
+    return html;
+  }
+  function gotoCell(spec) {
+    var p = spec.split('|');
+    go(p[0]);
+    var el = document.querySelector('[data-k="' + cssEsc(p[1] + '|' + p[2]) + '"]');
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', inline: 'center' });
+    el.focus({ preventScroll: true });
+    el.classList.add('flash');
+    setTimeout(function () { el.classList.remove('flash'); }, 1600);
+  }
+
   function legend() {
-    return '<div class="legend"><span><i class="sw white"></i>You fill these</span><span><i class="sw blue"></i>Automatic - calculated like the Excel formulas</span>' +
+    return '<div class="legend"><span><i class="sw white"></i>You fill these</span><span><i class="sw yellow"></i>Dropdown</span>' +
+      '<span><i class="sw blue"></i>Automatic - calculated like the Excel formulas</span><span><i class="sw red"></i>Critical entry missing - see Checks &amp; Gaps</span>' +
       '<span>Tip: copy a block of cells in Excel and paste it here with Ctrl+V - it fills across columns and rows</span></div>';
   }
 
@@ -560,6 +669,9 @@
     html += '<section class="card"><h2>Corrective Action &amp; Improvement</h2><div class="tiles">' +
       tile('Open CAPAs', D.capaOpen) + tile('Overdue CAPAs', D.capaOverdue, '', D.capaOverdue > 0) +
       tile('Effectiveness pending', D.capaPending) + tile('Critical / High open', D.capaCritHigh, '', D.capaCritHigh > 0) + '</div></section>';
+    var redN = issues.filter(function (x) { return x.level === 'red'; }).length, amberN = issues.length - redN, sugN = CK.newFindings(val, todayIso()).length;
+    html += '<section class="card"><h2>Data quality <a class="muted small-link" href="#checks">open Checks &amp; Gaps \u2192</a></h2><div class="tiles">' +
+      tile('Missing critical entries', redN, '', redN > 0) + tile('Needs attention', amberN) + tile('Suggested CAPAs not yet raised', sugN, '', sugN > 0) + '</div></section>';
     html += '</div><div class="dash-grid two">';
     html += '<section class="card"><h2>PDCA snapshot</h2><table class="mini"><tbody>';
     for (var r = 5; r <= 19; r++) html += '<tr><td>' + esc(book.get(S.PDCA, 'C' + r)) + '</td><td>' + badge(val(S.PDCA, 'F' + r)) + '</td></tr>';
@@ -658,8 +770,11 @@
           if (c.auto || c.fixed) return;
           var el = tr.querySelector('[data-k="' + cssEsc(def.sheet + '|' + c.c + r) + '"]');
           if (!el) return;
-          var msg = validate(def, c, r);
-          el.classList.toggle('invalid', !!msg);
+          var msg = validate(def, c, r), lvl = msg ? 'red' : '';
+          var iss = issueAt[def.sheet + '|' + c.c + r];
+          if (!msg && iss) { msg = iss.what; lvl = iss.level; }
+          el.classList.toggle('invalid', lvl === 'red');
+          el.classList.toggle('attention', lvl === 'amber');
           el.title = msg;
         });
       });
@@ -674,11 +789,12 @@
         el.textContent = msg;
         el.className = msg ? 'warn-text' : '';
       });
-      document.querySelectorAll('.bia-block input[type=date]').forEach(function (el) {
-        var s = EN.serial(el.value);
-        var bad = s !== null && s > today();
-        el.classList.toggle('invalid', bad);
-        el.title = bad ? 'Assessment date cannot be in the future' : '';
+      document.querySelectorAll('.bia-block [data-k]').forEach(function (el) {
+        var k = el.getAttribute('data-k'), iss = issueAt[k];
+        var s = el.type === 'date' ? EN.serial(el.value) : null;
+        var msg = s !== null && s > today() ? 'Assessment date cannot be in the future' : (iss ? iss.what : '');
+        el.classList.toggle('invalid', !!msg);
+        el.title = msg;
       });
     }
   }
@@ -694,6 +810,10 @@
   // ------------------------------------------------------------------ events
   function onInput(e) {
     var el = e.target;
+    if (el.hasAttribute && el.hasAttribute('data-capa-all')) {
+      document.querySelectorAll('[data-capa-pick]').forEach(function (cb) { cb.checked = el.checked; });
+      return;
+    }
     var k = el.getAttribute && el.getAttribute('data-k');
     if (!k) return;
     var p = k.split('|');
@@ -739,10 +859,22 @@
       var d = SC.byId(current), r = +t.getAttribute('data-clear-row');
       if (!confirm('Clear all entries in this row? IDs of other rows do not change.')) return;
       d.cols.forEach(function (c) { if (!c.auto && !c.fixed) setValue(d.sheet, c.c + r, ''); });
-      calc = EN.compute(book, { tpl: T });
+      recompute();
       var yy = window.scrollY;
       renderPage();
       window.scrollTo(0, yy);
+      return;
+    }
+    if (t.hasAttribute('data-goto')) { e.preventDefault(); gotoCell(t.getAttribute('data-goto')); return; }
+    if (t.hasAttribute('data-capa-add')) {
+      var list = CK.newFindings(val, todayIso());
+      if (t.getAttribute('data-capa-add') === 'selected') {
+        var picked = {};
+        document.querySelectorAll('[data-capa-pick]').forEach(function (cb) { if (cb.checked) picked[cb.getAttribute('data-capa-pick')] = 1; });
+        list = list.filter(function (f, i) { return picked[i]; });
+      }
+      if (!list.length) { toast('Nothing selected'); return; }
+      addCapas(list);
       return;
     }
     if (t.hasAttribute('data-jump')) {
@@ -863,7 +995,7 @@
         done++;
       });
     });
-    calc = EN.compute(book, { tpl: T });
+    recompute();
     var y = window.scrollY;
     renderPage();
     window.scrollTo(0, y);
@@ -904,7 +1036,7 @@
       try {
         var blob = await IO.exportWorkbook(window.BCM_TEMPLATE_B64, INPUTS, function (sheet, addr) { return book.get(sheet, addr); });
         var bu = fileSafe(book.get(S.BUP, 'B7') || book.get(S.BUP, 'B6'));
-        download(blob, 'Almarai_BCM_Toolkit_v0.2' + (bu ? '_' + bu : '') + '_' + stamp() + '.xlsx');
+        download(blob, 'Almarai_BCM_Toolkit_v0.2.1' + (bu ? '_' + bu : '') + '_' + stamp() + '.xlsx');
         toast('Exported. Excel recalculates all formulas when you open the file.', 'ok');
       } catch (err) {
         console.error(err);
@@ -925,7 +1057,7 @@
           state.values = res.values;
           state.importedFrom = file.name;
           save();
-          calc = EN.compute(book, { tpl: T });
+          recompute();
           renderNav();
           renderPage();
           toast('Imported ' + n + ' values from ' + file.name, 'ok');
@@ -947,7 +1079,7 @@
           s.ui = s.ui || { rows: {} }; s.ui.rows = s.ui.rows || {};
           state = s;
           save();
-          calc = EN.compute(book, { tpl: T });
+          recompute();
           renderNav();
           renderPage();
           toast('Backup restored', 'ok');
@@ -958,7 +1090,7 @@
       if (!confirm('Clear ALL data in this browser and start from the blank toolkit? Export or back up first if you need it.')) return;
       state = freshState();
       save();
-      calc = EN.compute(book, { tpl: T });
+      recompute();
       renderNav();
       renderPage();
       toast('Started a blank toolkit');
@@ -980,6 +1112,7 @@
     go(h || 'dash');
   }
   document.addEventListener('DOMContentLoaded', function () {
+    recompute();
     var page = document.getElementById('page');
     page.addEventListener('input', onInput);
     page.addEventListener('change', onInput);

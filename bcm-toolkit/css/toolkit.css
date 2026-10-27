@@ -200,3 +200,21 @@ table.heat td b{font-size:1.15rem}
   main{padding:0}
   .table-wrap.tall{max-height:none}
 }
+
+/* Dropdown cells are yellow, as in the Excel template (v0.2.1). */
+select.in,.in[data-opt],.sheet-table select.in,.sheet-table .in[data-opt]{background:#FFFF99;border-color:#e0d870}
+.sheet-table select.in:focus,.sheet-table .in[data-opt]:focus{background:#FFFFB8}
+/* Missing critical entries (red) and attention (amber) - same rules as the template's highlights. */
+.in.invalid,.sheet-table .in.invalid{background:#FFC7CE!important;border-color:#C62828!important;color:#9C0006}
+.in.attention,.sheet-table .in.attention{background:#FFEB9C!important;border-color:#C9A100!important;color:#9C5700}
+.in.flash{outline:3px solid #003399;outline-offset:1px}
+.legend .sw.yellow{background:#FFFF99}.legend .sw.red{background:#FFC7CE}
+.ok-note{border-left:4px solid var(--green);color:#374151}
+.suggest{border-left:4px solid #C9A100}
+.suggest-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px}
+.suggest-head h2{margin-bottom:4px}
+.suggest-actions{display:flex;gap:8px}
+.tiles.wide{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));margin-bottom:14px}
+.card-pad{padding:14px 16px 0}
+.small-link{font-size:.78rem;font-weight:500;margin-left:8px}
+a.btn{text-decoration:none;display:inline-block}

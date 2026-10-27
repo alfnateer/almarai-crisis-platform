@@ -103,6 +103,8 @@
       iso: 'How the toolkit works - governance, colours & flow' },
     { id: 'dash', sheet: S.DASH, nav: '02', title: 'Dashboard', group: 'Governance', hiddenInWorkbook: true, kind: 'view',
       iso: 'ISO 22301: 9.1 Monitoring, measurement, analysis and evaluation' },
+    { id: 'checks', sheet: 'Checks', nav: 'QA', title: 'Checks & Gaps', group: 'Governance', kind: 'checks',
+      iso: 'Critical entries left empty, requirement flags not captured, and findings to raise as CAPA' },
     {
       id: 'bup', sheet: S.BUP, nav: '03', title: 'Business Unit Profile', group: 'Plan - Context & Scope',
       iso: 'ISO 22301 Clause 4 - Context of the organisation', kind: 'form',

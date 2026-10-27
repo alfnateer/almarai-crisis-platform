@@ -1,7 +1,9 @@
 # BCM Implementation Toolkit (web)
 
-A website that replaces data entry in the Almarai BCM Toolkit Template v0.2
-(`template/Almarai_BCM_Toolkit_Template_v0.2.xlsx`, a blank copy of the Bakery v0.2 workbook).
+A website that replaces data entry in the Almarai BCM Toolkit Template **v0.2.1**
+(`template/Almarai_BCM_Toolkit_Template_v0.2.1.xlsx`): a blank copy of the Bakery v0.2
+workbook with its formula defects fixed, dropdown cells in yellow and red highlights on
+missing critical entries (see `tools/fix_template.py` for the full list).
 Every sheet of the workbook has a page; automatic columns are recalculated live, and
 **Export to Excel** produces a populated copy of the original workbook.
 
@@ -45,6 +47,18 @@ target cell on a page and press Ctrl+V. Values fill across columns and down rows
 added as needed), dropdown values are matched case-insensitively, dates such as
 `15/01/2026`, `15-Jan-26` or `2026-01-15` are recognised, and automatic/label columns are skipped.
 
+**Checks & Gaps:** the same rules as the template's red highlights run live on the site -
+required entries left empty in a row that is in use, dropdown values not in their list,
+RTO not shorter than MTPD, and S&S requirement flags set to Yes without a matching row in
+12. Requirements Register (amber when rows exist but are not all Ready). The Checks & Gaps
+page lists them with links to each cell.
+
+**CAPA pre-population:** findings in the registers (requirement flags not captured,
+overdue strategies, critical/significant risks without a strategy, failed or overdue
+exercises, IT DR gaps, overdue BIA reviews, single points of failure, ISO documents past
+review) are offered as CAPA rows on the CAPA page - pre-filled with source, reference,
+finding, severity, owner, target date and status Open - and go into the exported workbook.
+
 ## Export / import
 
 * **Export to Excel** (`js/xlsx-io.js`) opens the embedded template, writes each input
@@ -60,6 +74,7 @@ added as needed), dropdown values are matched case-insensitively, dates such as
 
 * `js/schema.js` - every page, column and input cell (single source of truth for export/import)
 * `js/engine.js` - JavaScript ports of the workbook formulas (live calculation on the site)
+* `js/checks.js` - missing-entry checks and CAPA suggestions
 * `js/xlsx-io.js` - Excel export/import (uses `vendor/jszip.min.js`, MIT)
 * `js/app.js`, `css/toolkit.css`, `index.html` - the user interface
 * `js/template.js`, `js/template-data.js` - generated from the workbook
@@ -72,8 +87,12 @@ data files:
 
 ```
 node tools/dump_inputs.js > /tmp/inputs.json
-python3 tools/make_blank_template.py <workbook>.xlsx /tmp/inputs.json template/<name>.xlsx
+python3 tools/make_blank_template.py <workbook>.xlsx /tmp/inputs.json template/source/<name>_blank.xlsx
+python3 tools/fix_template.py template/source/<name>_blank.xlsx template/<name>.xlsx
 python3 tools/build_template_data.py template/<name>.xlsx
 ```
+
+`fix_template.py` asserts on every formula it changes, so a new workbook version that
+already differs fails loudly; adjust the script (or drop fixes that are no longer needed).
 
 If the new version moves or adds input cells, update `js/schema.js` to match.
