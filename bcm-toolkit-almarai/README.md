@@ -1,17 +1,26 @@
 # Almarai BCM Toolkit (web)
 
-Almarai edition of the toolkit website, kept next to the generic edition in `../bcm-toolkit/`
-(template v5.1). **Import Excel** accepts the Almarai BCM Toolkit Template v0.2, blank or
-filled. Business-unit copies such as `03. Bakery_Almarai_BCM_Toolkit_Template_v0.2_...` work,
-including ones with extra sheets of their own, which are ignored. The embedded v0.2.1
-template has the larger register capacities of the Bakery copy (57 risks, 205 dependencies),
-so data from either variant fits. One-file version:
+This is the Almarai edition of the toolkit website. The generic edition (template v5.1)
+lives in `../bcm-toolkit/`.
+
+**Import Excel** accepts two kinds of workbook:
+* the Almarai BCM Toolkit Template v0.3
+* v0.2, blank or filled. Business-unit copies such as
+  `03. Bakery_Almarai_BCM_Toolkit_Template_v0.2_...` work, and any extra sheets of their own
+  are ignored.
+
+The embedded template has the larger register capacities of the Bakery copy (57 risks,
+205 dependencies), so data from either v0.2 variant fits. To build a one-file version, run
 `python3 tools/build_single_html.py "dist/Almarai BCM Toolkit.html"`.
 
-A website that replaces data entry in the Almarai BCM Toolkit Template **v0.2.1**
-(`template/Almarai_BCM_Toolkit_Template_v0.2.1.xlsx`): a blank copy of the Bakery v0.2
-workbook with its formula defects fixed, dropdown cells in yellow and red highlights on
-missing critical entries (see `tools/fix_template.py` for the full list).
+The site replaces data entry in the Almarai BCM Toolkit Template **v0.3**
+(`template/Almarai_BCM_Toolkit_Template_v0.3.xlsx`). It is built in two steps:
+1. **v0.2.1** (`tools/fix_template.py`): a blank copy of the Bakery v0.2 workbook with its
+   formula defects fixed, dropdown cells in yellow and red highlights on missing critical
+   entries.
+2. **v0.3** (`tools/cleanup_template.py`): Document Control removed (ISO 22301 7.5 now reads
+   18. ISO Docs & Records), the always-blank BCM Risk Register columns T-W removed, and
+   label/SharePoint metadata, the add-in, printer settings and unused named ranges stripped.
 Every sheet of the workbook has a page; automatic columns are recalculated live, and
 **Export to Excel** produces a populated copy of the original workbook.
 
@@ -22,7 +31,6 @@ no server code - it is a static site.
 
 | Sheet | Page | What you fill |
 |---|---|---|
-| 00 Document Control | form | version, dates, status, sign-offs, version history |
 | 01 Instructions | reference | read-only |
 | 02 Dashboard | live view | - (all counters calculated) |
 | 03 Business Unit Profile | form | sections 1-11 (v0.2 order: identity, leadership, internal, external, climate, interested parties, scope, legal, assets, risk appetite, approval) |
@@ -37,12 +45,12 @@ no server code - it is a static site.
 | 12 Requirements Register | table (300 rows) | requirements per S&S |
 | 13 IT DR Register | table (200 rows) | systems, RTO/RPO required vs capable, DR tests |
 | 14 Recovery & Response | table (100 rows, 5-104) | actions, plans, exercises |
-| 15 BCM Risk Register | live view | - (consolidated automatically) |
+| 15 BCM Risk Register | live view | - (consolidated automatically, columns A-T) |
 | 16 CAPA Register | table (100 rows) | findings through verified closure |
 | 17 BCMS Progress (PDCA) | table | manual override, owner & next action |
 | 18 ISO Docs & Records | table (20 docs) | status and evidence metadata |
 | 19 ISO 22301 Map | table | owner, evidence, verification fields |
-| 20 ERM RA Guidance | reference | read-only (heat map drives risk ratings) |
+| 20 ERM RA Guidance | guidance page | read-only: risk appetite, likelihood / impact scales, heat map with live risk counts, impact criteria per category, controls, treatment |
 | 21 Analysis | live view | - |
 | 99 Engine | (internal lists) | used for dropdowns |
 
@@ -96,8 +104,9 @@ data files:
 ```
 node tools/dump_inputs.js > /tmp/inputs.json
 python3 tools/make_blank_template.py <workbook>.xlsx /tmp/inputs.json template/source/<name>_blank.xlsx
-python3 tools/fix_template.py template/source/<name>_blank.xlsx template/<name>.xlsx
-python3 tools/build_template_data.py template/<name>.xlsx
+python3 tools/fix_template.py template/source/<name>_blank.xlsx template/source/<name>_v0.2.1.xlsx
+python3 tools/cleanup_template.py template/source/<name>_v0.2.1.xlsx template/<name>_v0.3.xlsx
+python3 tools/build_template_data.py template/<name>_v0.3.xlsx
 ```
 
 `fix_template.py` asserts on every formula it changes, so a new workbook version that

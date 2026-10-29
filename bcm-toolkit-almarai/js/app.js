@@ -33,12 +33,21 @@
     });
     return { app: 'bcm-toolkit', template: T.source, version: 1, values: values, ui: { rows: {} }, updated: null };
   }
+  // Drop stored values for cells that are no longer inputs (e.g. 00. Document Control,
+  // removed in template v0.3), so they are not carried around.
+  function prune(values) {
+    Object.keys(values).forEach(function (sh) {
+      Object.keys(values[sh]).forEach(function (a) { if (!SPEC[sh + '!' + a]) delete values[sh][a]; });
+      if (!Object.keys(values[sh]).length) delete values[sh];
+    });
+    return values;
+  }
   function loadState() {
     try {
       var raw = localStorage.getItem(STORE_KEY);
       if (raw) {
         var s = JSON.parse(raw);
-        if (s && s.values) { s.ui = s.ui || { rows: {} }; s.ui.rows = s.ui.rows || {}; return s; }
+        if (s && s.values) { s.ui = s.ui || { rows: {} }; s.ui.rows = s.ui.rows || {}; prune(s.values); return s; }
       }
     } catch (e) { /* storage unavailable - start fresh */ }
     return freshState();
@@ -335,6 +344,7 @@
       case 'pdca': html = renderPdca(def); break;
       case 'isomap': html = renderIsoMap(def); break;
       case 'reference': html = pageHeader(def) + '<div class="card ref-wrap">' + (T.reference[def.sheet] || '') + '</div>'; break;
+      case 'erm': html = renderErm(def); break;
       case 'checks': html = renderChecks(def); break;
       case 'view': html = def.id === 'dash' ? renderDashboard(def) : (def.id === 'reg' ? renderRegister(def) : renderAnalysis(def)); break;
     }
@@ -652,7 +662,7 @@
       '<p class="iso">Live counters - review weekly - red items need action, not explanation | ISO 22301: 9.1</p></header>';
     html += '<section class="card intro"><div><h2>Fill the toolkit online, export the workbook</h2><p>Work through the sheets in the left menu (same order as the Excel toolkit). ' +
       'Everything you type is kept in this browser and recalculated live. <b>Export to Excel</b> writes your data into the original <i>' + esc(T.source) +
-      '</i> so every formula, dropdown and format stays intact. <b>Import Excel</b> loads an existing toolkit: the Almarai BCM Toolkit Template v0.2, blank or filled (for example a business-unit copy such as Bakery).</p></div>' +
+      '</i> so every formula, dropdown and format stays intact. <b>Import Excel</b> loads an existing toolkit: Almarai BCM Toolkit Template v0.3, or v0.2 blank or filled (for example a business-unit copy such as Bakery).</p></div>' +
       '<div class="intro-actions"><button class="btn primary" data-action="export">Export to Excel</button><button class="btn" data-action="import">Import Excel</button></div></section>';
     html += '<div class="dash-grid">';
     html += '<section class="card"><h2>Coverage</h2><div class="tiles">' +
@@ -681,13 +691,14 @@
   }
   function heatMap() {
     var counts = {};
-    for (var r = 5; r <= 34; r++) {
+    var ra = SC.byId('ra');
+    for (var r = ra.first; r <= ra.last; r++) {
       var k = val(S.RA, 'K' + r), m = val(S.RA, 'M' + r);
       if (val(S.RA, 'B' + r) !== '' && k !== '' && m !== '') counts[k + '-' + m] = (counts[k + '-' + m] || 0) + 1;
     }
     var lik = ['Almost Certain', 'Frequent', 'Occasional', 'Infrequent', 'Rare'];
     var imp = ['Negligible', 'Minor', 'Medium', 'Critical', 'Catastrophic'];
-    var html = '<table class="heat"><tbody>';
+    var html = '<div class="heat-wrap"><table class="heat"><tbody>';
     for (var l = 5; l >= 1; l--) {
       html += '<tr><th>' + lik[5 - l] + '</th>';
       for (var i = 1; i <= 5; i++) {
@@ -698,14 +709,77 @@
       }
       html += '</tr>';
     }
-    html += '<tr><th></th>' + imp.map(function (x) { return '<th class="imp">' + x + '</th>'; }).join('') + '</tr></tbody></table>';
+    html += '<tr><th></th>' + imp.map(function (x) { return '<th class="imp">' + x + '</th>'; }).join('') + '</tr></tbody></table></div>';
     return html;
+  }
+
+  // ---- 20. ERM RA Guidance: structured view of the sheet (appetite, scales, heat map,
+  // detailed impact criteria, treatment). Text comes from the workbook.
+  var ERM_CATS = [['B8', 'D'], ['B11', 'E'], ['B14', 'F'], ['B17', 'G'], ['B20', 'H'], ['B23', 'I'], ['B26', 'J']];
+  function erm(addr) { return String(book.get(S.ERM, addr) || '').trim(); }
+  function ermText(addr) { return '<p class="erm-text">' + esc(erm(addr)) + '</p>'; }
+  function appetiteTone(v) { return /zero/i.test(v) ? 'red' : (/low/i.test(v) ? 'amber' : (/high/i.test(v) ? 'green' : 'grey')); }
+  function ratingTone(score) { return score >= 20 ? 'red' : (score >= 12 ? 'orange' : (score >= 7 ? 'yellow' : 'green')); }
+  function ermCriteria(col) {
+    var html = '<table class="sheet-table erm-criteria"><thead><tr><th style="width:70px">Score</th><th style="width:130px">Impact rating</th><th>' + esc(erm(col + '97')) + ' - criteria</th></tr></thead><tbody>';
+    for (var r = 99; r <= 103; r++) {
+      var lines = erm(col + r).split(/\n+/).map(function (x) { return x.replace(/^\s*-\s*/, '').trim(); }).filter(Boolean);
+      html += '<tr><td class="num"><span class="score-pill s' + erm('B' + r) + '">' + esc(erm('B' + r)) + '</span></td><td><b>' + esc(erm('C' + r)) + '</b></td><td><ul class="erm-list">' +
+        lines.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></td></tr>';
+    }
+    return html + '</tbody></table>';
+  }
+  function renderErm(def) {
+    var html = pageHeader(def, '<p class="note">Read-only. Residual likelihood and impact chosen in <a href="#ra">10. Risk Assessment</a> are rated with this heat map; ' +
+      'the numbers in the heat map cells show how many risks in this toolkit sit in each cell.</p>');
+    html += '<nav class="erm-toc">' + [['erm-appetite', 'Risk appetite'], ['erm-scales', 'Likelihood & impact'], ['erm-heat', 'Heat map & rating'],
+      ['erm-criteria-card', 'Impact criteria'], ['erm-controls', 'Controls & risk'], ['erm-treat', 'Treatment']].map(function (x) {
+      return '<a class="chip" href="#' + x[0] + '" data-jump="' + x[0] + '">' + x[1] + '</a>'; }).join('') + '</nav>';
+    // Appetite
+    html += '<section class="card" id="erm-appetite"><h2>Risk appetite <span class="muted">by risk category</span></h2><div class="erm-grid">';
+    ERM_CATS.forEach(function (c) {
+      var ap = erm(c[1] + '98');
+      html += '<div class="erm-tile"><div class="erm-tile-head"><b>' + esc(erm(c[0])) + '</b>' + (ap ? '<span class="badge ' + appetiteTone(ap) + '">' + esc(ap) + ' appetite</span>' : '') + '</div>' +
+        ermText('D' + c[0].slice(1)) + '</div>';
+    });
+    html += '</div></section>';
+    // Likelihood and impact scales
+    html += '<section class="card" id="erm-scales"><h2>Likelihood &amp; impact scales</h2><div class="erm-two">';
+    html += '<div><h3>' + esc(erm('B56')) + '</h3>' + ermText('D56') + '<table class="sheet-table"><thead><tr><th>Score</th><th>Rating</th><th>Description</th><th>' + esc(erm('F62')) + '</th><th>' + esc(erm('H62')) + '</th></tr></thead><tbody>';
+    for (var l = 63; l <= 67; l++) html += '<tr><td class="num"><span class="score-pill s' + erm('C' + l) + '">' + esc(erm('C' + l)) + '</span></td><td><b>' + esc(erm('B' + l)) + '</b></td><td>' + esc(erm('D' + l)) + '</td><td>' + esc(erm('F' + l)) + '</td><td class="nowrap">' + esc(erm('H' + l)) + '</td></tr>';
+    html += '</tbody></table><p class="muted small">' + esc(erm('B68')) + '</p></div>';
+    html += '<div><h3>' + esc(erm('B59')) + '</h3>' + ermText('D59') + '<table class="sheet-table"><thead><tr><th>Score</th><th>Rating</th><th>Description</th></tr></thead><tbody>';
+    for (var i = 71; i <= 75; i++) html += '<tr><td class="num"><span class="score-pill s' + erm('C' + i) + '">' + esc(erm('C' + i)) + '</span></td><td><b>' + esc(erm('B' + i)) + '</b></td><td>' + esc(erm('D' + i)) + '</td></tr>';
+    html += '</tbody></table><p class="muted small">' + esc(erm('B76')) + '</p></div></div></section>';
+    // Heat map and rating bands
+    html += '<section class="card" id="erm-heat"><h2>Risk heat map &amp; rating</h2><p class="erm-text">' + esc(erm('B77')) + '</p><div class="erm-heat">' +
+      '<div><div class="axis-y">Likelihood</div>' + heatMap() + '<div class="axis-x">Impact</div></div><div><table class="sheet-table erm-bands"><thead><tr><th>' + esc(erm('B88')) + '</th><th>' + esc(erm('D88')) + '</th><th>BCP priority</th></tr></thead><tbody>';
+    [[89, 'red', 1], [90, 'orange', 2], [91, 'yellow', 3], [92, 'green', 4]].forEach(function (b) {
+      html += '<tr><td><span class="band h-' + b[1] + '"></span><b>' + esc(erm('B' + b[0])) + '</b></td><td>' + esc(erm('D' + b[0])) + '</td><td class="num">' + b[2] + '</td></tr>';
+    });
+    html += '</tbody></table></div></div></section>';
+    // Detailed impact criteria by category
+    var cat = state.ui.ermCat || 'D';
+    html += '<section class="card" id="erm-criteria-card"><h2>Detailed impact assessment criteria</h2><p class="muted">Pick a category to see what each impact score means.</p><div class="erm-cats">';
+    ERM_CATS.forEach(function (c) {
+      html += '<button type="button" class="chip' + (c[1] === cat ? ' on' : '') + '" data-erm-cat="' + c[1] + '">' + esc(erm(c[1] + '97')) +
+        ' <span class="badge ' + appetiteTone(erm(c[1] + '98')) + '">' + esc(erm(c[1] + '98')) + '</span></button>';
+    });
+    html += '</div><div class="table-wrap" id="erm-criteria">' + ermCriteria(cat) + '</div></section>';
+    // Controls, inherent / residual
+    html += '<section class="card" id="erm-controls"><h2>Controls &amp; risk definitions</h2><div class="erm-grid">';
+    [29, 32, 35, 38, 41, 44].forEach(function (r) { html += '<div class="erm-tile"><div class="erm-tile-head"><b>' + esc(erm('B' + r)) + '</b></div>' + ermText('D' + r) + '</div>'; });
+    html += '</div>' + (erm('B47') ? '<div class="erm-note">' + esc(erm('B47')) + '</div>' : '') + '</section>';
+    // Treatment
+    html += '<section class="card" id="erm-treat"><h2>Risk treatment options</h2><div class="erm-grid four">';
+    [108, 111, 114, 117].forEach(function (r) { html += '<div class="erm-tile"><div class="erm-tile-head"><b>' + esc(erm('B' + r)) + '</b></div>' + ermText('D' + r) + '</div>'; });
+    return html + '</div></section>';
   }
 
   // ---- Register (15) and Analysis (21)
   function renderRegister(def) {
-    var cols = SC.colRange('A', 'X');
-    var badgeCols = { G: 1, M: 1, O: 1, P: 1, Q: 1, X: 1 };
+    var cols = SC.colRange('A', 'T');
+    var badgeCols = { G: 1, M: 1, O: 1, P: 1, Q: 1, T: 1 };
     var html = pageHeader(def, '<p class="note">Read-only - built automatically from 10. Risk Assessment, 11. Strategies &amp; Solutions and 14. Recovery &amp; Response.</p>');
     if (!calc.register.length) return html + '<div class="card empty">No risks yet. Risks appear here once a Risk Assumption is selected in <a href="#ra">10. Risk Assessment</a>.</div>';
     html += '<div class="card flush"><div class="table-wrap tall"><table class="sheet-table"><thead><tr>';
@@ -866,6 +940,13 @@
       return;
     }
     if (t.hasAttribute('data-goto')) { e.preventDefault(); gotoCell(t.getAttribute('data-goto')); return; }
+    if (t.hasAttribute('data-erm-cat')) {
+      state.ui.ermCat = t.getAttribute('data-erm-cat');
+      save();
+      document.querySelectorAll('[data-erm-cat]').forEach(function (b) { b.classList.toggle('on', b === t); });
+      document.getElementById('erm-criteria').innerHTML = ermCriteria(state.ui.ermCat);
+      return;
+    }
     if (t.hasAttribute('data-capa-add')) {
       var list = CK.newFindings(val, todayIso());
       if (t.getAttribute('data-capa-add') === 'selected') {
@@ -1056,7 +1137,7 @@
       try {
         var blob = await IO.exportWorkbook(window.BCM_TEMPLATE_B64, INPUTS, function (sheet, addr) { return book.get(sheet, addr); });
         var bu = fileSafe(book.get(S.BUP, 'B7') || book.get(S.BUP, 'B6'));
-        download(blob, 'Almarai_BCM_Toolkit_v0.2.1' + (bu ? '_' + bu : '') + '_' + stamp() + '.xlsx');
+        download(blob, 'Almarai_BCM_Toolkit_v0.3' + (bu ? '_' + bu : '') + '_' + stamp() + '.xlsx');
         toast('Exported. Excel recalculates all formulas when you open the file.', 'ok');
       } catch (err) {
         console.error(err);
@@ -1098,6 +1179,7 @@
           if (!s || s.app !== 'bcm-toolkit' || !s.values) throw new Error('Not a BCM Toolkit backup file.');
           if (!confirm('Replace the data in this browser with the backup "' + file.name + '"?')) return;
           s.ui = s.ui || { rows: {} }; s.ui.rows = s.ui.rows || {};
+          prune(s.values);
           state = s;
           save();
           recompute();

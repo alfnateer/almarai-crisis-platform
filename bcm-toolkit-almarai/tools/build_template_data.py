@@ -3,12 +3,12 @@
 
 Run after replacing template/BCM_Implementation_Toolkit_*.xlsx:
 
-    python3 tools/build_template_data.py template/Almarai_BCM_Toolkit_Template_v0.2.1.xlsx
+    python3 tools/build_template_data.py template/Almarai_BCM_Toolkit_Template_v0.3.xlsx
 
 Writes:
   js/template.js       - the workbook itself (base64), used as the export template
   js/template-data.js  - static labels / defaults, ISO-map status wiring and the
-                         read-only reference pages (Instructions, ERM RA Guidance)
+                         read-only reference page (Instructions; ERM RA Guidance has its own page)
 """
 import base64
 import datetime as dt
@@ -95,8 +95,8 @@ def iso_map_wiring(wb):
             continue
         ext = re.search(r'"(EXT-\d+)"', f)
         pdca = re.search(r"'17\. BCMS Progress \(PDCA\)'!\$F(\d+)", f)
-        if "'00. Document Control'" in f:
-            rows[r] = {"type": "doc75"}
+        if "\"Evidence Filed\"" in f and "SUMPRODUCT" in f and not ext:
+            rows[r] = {"type": "docs75"}
         elif "_xlpm.roles" in f:
             rows[r] = {"type": "roles53"}
         elif "$B$18:$D$25" in f:
@@ -217,7 +217,6 @@ def main():
         "comments": comments(wb),
         "reference": {
             "01. Instructions": render_sheet_html(wb["01. Instructions"]),
-            "20. ERM RA Guidance": render_sheet_html(wb["20. ERM RA Guidance"]),
         },
     }
     (ROOT / "js" / "template-data.js").write_text(

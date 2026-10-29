@@ -27,7 +27,6 @@
   }
 
   var S = {
-    DOC: '00. Document Control',
     INS: '01. Instructions',
     DASH: '02. Dashboard',
     BUP: '03. Business Unit Profile',
@@ -71,34 +70,10 @@
    *   grid      - free grid of inputs (Risk Assumption Map, application lists)
    *   pdca, isomap, docs - tables with fixed rows and some inputs
    *   view      - fully calculated (Dashboard, Risk Register, Analysis)
-   *   reference - read-only reference pages
+   *   reference - read-only reference page (Instructions)
+   *   erm       - ERM risk assessment guidance (read-only, from 20. ERM RA Guidance)
    */
   var sheets = [
-    {
-      id: 'doc', sheet: S.DOC, nav: '00', title: 'Document Control', group: 'Governance',
-      iso: 'ISO 22301: 7.5 Documented information', kind: 'form', keepDefaults: true,
-      sections: [
-        { title: 'Document Control', fields: [
-          { addr: 'B5', label: 'Version Number', type: 'text' },
-          { addr: 'B6', label: 'Release Date', type: 'date' },
-          { addr: 'B7', label: 'Review Date', auto: true },
-          { addr: 'B8', label: 'Status', type: 'text', list: ['Draft- under review', 'Published'],
-            hint: 'Set to "Published" once approved - the ISO map checks for it.' },
-          { addr: 'B9', label: 'Custodian', type: 'text' }
-        ] },
-        { title: 'Prepared by', grid: { rows: [13], cols: [
-          { c: 'A', label: 'Position / Title' }, { c: 'B', label: 'Name' }, { c: 'C', label: 'Date', type: 'date' }, { c: 'D', label: 'Signature' }] } },
-        { title: 'Reviewed by', grid: { rows: [17], cols: [
-          { c: 'A', label: 'Position / Title' }, { c: 'B', label: 'Name' }, { c: 'C', label: 'Date', type: 'date' }, { c: 'D', label: 'Signature' }] } },
-        { title: 'Approved by', grid: { rows: [21], cols: [
-          { c: 'A', label: 'Position / Title' }, { c: 'B', label: 'Name' }, { c: 'C', label: 'Date', type: 'date' }, { c: 'D', label: 'Signature' }] } },
-        { title: 'Version Control History', grid: { rows: [25, 26, 27, 28, 29, 30, 31, 32], cols: [
-          { c: 'A', label: 'Version', autoRows: [25] },
-          { c: 'B', label: 'Effective Date', type: 'date', autoRows: [25] },
-          { c: 'C', label: 'Change Description', type: 'textarea' },
-          { c: 'D', label: 'Approved By', autoRows: [25] }] } }
-      ]
-    },
     { id: 'guide', sheet: S.INS, nav: '01', title: 'Instructions', group: 'Hidden sheets in the workbook', kind: 'reference',
       iso: 'How the toolkit works - governance, colours & flow' },
     { id: 'dash', sheet: S.DASH, nav: '02', title: 'Dashboard', group: 'Governance', hiddenInWorkbook: true, kind: 'view',
@@ -433,8 +408,8 @@
         { c: 'O', label: 'Linked Finding / CAPA', w: 110 }
       ]
     },
-    { id: 'erm', sheet: S.ERM, nav: '20', title: 'ERM RA Guidance', group: 'Reference', kind: 'reference',
-      iso: 'ISO 22301: 8.2.3 Risk criteria (per ERM framework) - illustrative' },
+    { id: 'erm', sheet: S.ERM, nav: '20', title: 'ERM RA Guidance', group: 'Reference', kind: 'erm',
+      iso: 'ISO 22301: 8.2.3 Risk criteria - Almarai ERM framework: appetite, likelihood, impact, heat map and treatment' },
     { id: 'ana', sheet: S.ANA, nav: '21', title: 'Analysis', group: 'Hidden sheets in the workbook', kind: 'view',
       iso: 'In-scope products & services with corporate vs BIA recovery targets' }
   ];

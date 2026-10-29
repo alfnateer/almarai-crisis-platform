@@ -91,11 +91,6 @@
     function set(sheet, addr, v) { calc[sheet][addr] = v; }
     function eqStr(a, b) { return String(a).toLowerCase() === String(b).toLowerCase(); }
 
-    // ---- 00 Document Control
-    set(S.DOC, 'B7', blank(g(S.DOC, 'B6')) ? '' : edate(g(S.DOC, 'B6'), 12));
-    set(S.DOC, 'A25', str(g(S.DOC, 'B5')));
-    set(S.DOC, 'B25', str(g(S.DOC, 'B6')));
-    set(S.DOC, 'D25', str(g(S.DOC, 'B21')));
     // ---- 03 BU Profile
     set(S.BUP, 'D119', blank(g(S.BUP, 'B119')) ? '' : edate(g(S.BUP, 'B119'), 12));
 
@@ -419,14 +414,13 @@
       var exStat = RR_ROWS.filter(function (q) { return g(S.RR, 'B' + q) !== '' && ss.some(function (s) { return eqStr(s, g(S.RR, 'C' + q)); }); }).map(function (q) { return g(S.RR, 'P' + q); });
       row.O = exStat.length ? worst(exStat, EX_ORD) : 'Not Created';
       row.R = str(g(S.RA, 'R' + r));
-      // S shows the Risks (New / Existing) column; T-W are not captured in 10. Risk Assessment.
+      // S: Risks (New / Existing); T: Source Completion (template v0.3).
       row.S = str(g(S.RA, 'U' + r));
-      row.T = row.U = row.V = row.W = '';
-      row.X = raComplete(r) ? 'Complete' : 'Incomplete';
+      row.T = raComplete(r) ? 'Complete' : 'Incomplete';
       var critical = row.G === 'Critical' || row.H === 1;
       var unrated = row.G === '';
       var dueOver = row.N !== '' && serial(row.N) < T;
-      if (row.X === 'Incomplete') {
+      if (row.T === 'Incomplete') {
         row.P = 'Red - Action Required';
         row.Q = 'ESCALATE: Source risk record incomplete';
       } else {
@@ -626,11 +620,17 @@
       else if (w.type === 'roles53') {
         var owned = count(SS_ROWS, function (q) { return g(S.SS, 'C' + q) !== '' && g(S.SS, 'P' + q) !== ''; });
         s = (roles === 0 && ssIds.length === 0) ? 'Not Assessed' : ((roles === 24 && owned === ssIds.length) ? 'In Place' : 'Partial');
-      } else if (w.type === 'doc75') {
-        var meta = count(['B5', 'B6', 'B7', 'B8', 'B9'], function (a) { return g(S.DOC, a) !== ''; });
-        var sign = 0;
-        [13, 17, 21].forEach(function (rw) { ['B', 'C', 'D'].forEach(function (c) { if (g(S.DOC, c + rw) !== '') sign++; }); });
-        s = (meta === 0 && sign === 0) ? 'Not Assessed' : ((g(S.DOC, 'B8') === 'Published' && sign === 9) ? 'In Place' : 'Partial');
+      } else if (w.type === 'docs75') {
+        // 7.5: every listed document in 18. ISO Docs & Records (not N/A) filed and in date.
+        var listed = 0, started = 0, filed = 0;
+        DOC_ROWS.forEach(function (q) {
+          if (g(S.DOCS, 'A' + q) === '') return;
+          var st = g(S.DOCS, 'F' + q);
+          if (st !== 'Not Applicable') listed++;
+          if (st !== '' && st !== 'Not Started' && st !== 'Not Applicable') started++;
+          if (st === 'Evidence Filed' && g(S.DOCS, 'S' + q) !== 'Overdue') filed++;
+        });
+        s = started === 0 ? 'Not Assessed' : (filed === listed ? 'In Place' : 'Partial');
       }
       set(S.ISO, 'D' + r, s);
     });

@@ -218,3 +218,35 @@ select.in,.in[data-opt],.sheet-table select.in,.sheet-table .in[data-opt]{backgr
 .card-pad{padding:14px 16px 0}
 .small-link{font-size:.78rem;font-weight:500;margin-left:8px}
 a.btn{text-decoration:none;display:inline-block}
+
+/* 20. ERM RA Guidance */
+.erm-toc{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.erm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:12px}
+.erm-grid.four{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.erm-tile{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:#fafbfc}
+.erm-tile-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;color:var(--navy)}
+.erm-text{margin:4px 0 8px;white-space:pre-line;color:#374151}
+.erm-two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;margin-top:10px}
+.erm-two h3{font-size:1rem;color:var(--navy);margin-bottom:4px}
+.erm-heat{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px;align-items:start;margin-top:8px}
+.erm-heat .axis-y,.erm-heat .axis-x{font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.erm-heat .axis-x{text-align:center;margin-top:2px}
+.erm-bands td{vertical-align:middle}
+.band{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:8px;vertical-align:-2px}
+.score-pill{display:inline-block;min-width:24px;padding:2px 6px;border-radius:999px;font-weight:700;text-align:center;background:var(--grey-bg)}
+.score-pill.s5{background:#FF6B6B}.score-pill.s4{background:#FFC000}.score-pill.s3{background:#FFF176}.score-pill.s2,.score-pill.s1{background:#92D050}
+.erm-cats{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.erm-cats .chip{cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:.85rem;padding:6px 12px}
+.chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.erm-list{margin:0;padding-left:18px}
+.erm-list li{margin:2px 0}
+.erm-criteria td{vertical-align:top}
+.erm-note{margin-top:14px;padding:12px 14px;border-left:4px solid var(--navy);background:var(--auto);white-space:pre-line;border-radius:0 8px 8px 0}
+.nowrap{white-space:nowrap}
+.small{font-size:.8rem}
+@media (max-width:900px){.erm-two,.erm-heat{grid-template-columns:1fr}}
+
+.heat-wrap{overflow-x:auto;max-width:100%}
+.erm-two>div,.erm-heat>div{min-width:0;overflow-x:auto}
+table.heat{table-layout:fixed;min-width:330px}
+table.heat tr>th:first-child{width:104px}
