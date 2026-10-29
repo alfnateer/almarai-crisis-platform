@@ -12,6 +12,8 @@ Structure:
   15. BCM Risk Register  columns T-W removed (Assessment Date, Review Date, Approver,
                          Evidence Reference: not captured in 10. Risk Assessment, always
                          blank). Source Completion moves from X to T
+  09. Risk Assumption Map the official Almarai v0.2 defaults (35 assumptions) replace the
+                         business-unit list the blank was made from
 Package clean-up:
   sensitivity-label / SharePoint metadata (customXml, docMetadata, custom properties),
   add-in task pane (webextensions), printer settings, cached sheet list in app.xml,
@@ -25,11 +27,27 @@ from pathlib import Path
 from lxml import etree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from fix_template import NS, NS_PR, NS_R, Q, Sheet, col_name, col_num, set_formula, split  # noqa: E402
+from fix_template import NS, NS_PR, NS_R, Q, Sheet, col_name, col_num, set_formula, set_text, split  # noqa: E402
 
 NS_CT = "http://schemas.openxmlformats.org/package/2006/content-types"
 DOC = "00. Document Control"
 ISO_DOCS = "'18. ISO Docs & Records'!"
+
+# 09. Risk Assumption Map defaults of the official Almarai BCM Toolkit Template v0.2
+# (rows 5-9, columns C-I = People, ICT, Data / Info, 3rd Party, Equipment / Building /
+# Utilities, Pre-Service, Post-Service). Rows 10-24 are left empty for the user.
+OFFICIAL_MAP = [
+    ["Mass staff absence", "Cyberattack", "Critical data loss", "Critical supplier failure",
+     "Critical site loss", "Critical material shortage", "Distribution network failure"],
+    ["Key person loss", "Core application outage", "Traceability records unavailable", "Import route disruption",
+     "Production line failure", "Feed or farm input shortage", "Warehouse or depot loss"],
+    ["Skilled operator shortage", "Data centre or cloud outage", "Food-safety records unavailable", "Logistics provider failure",
+     "Process utility outage", "Packaging shortage", "Fleet, fuel, or route disruption"],
+    ["Staff unable to access site", "Network or communications outage", "Inventory or master-data failure", "External utility outage",
+     "Cold-chain equipment failure", "Incoming material rejection", "Finished-goods cold-chain failure"],
+    ["Workforce evacuation", "Backup or recovery failure", "Regulatory records unavailable", "Outsourced service failure",
+     "Maintenance or spare-parts shortage", "Material stock-out", "Customer channel or demand disruption"],
+]
 
 # Evidence texts in 17. PDCA / 19. ISO Map that named 00. Document Control.
 TEXTS = {
@@ -194,6 +212,21 @@ def main(src, dst):
     for name, p in path.items():
         if name != DOC and p in files:
             assert ("'%s'!" % DOC).encode() not in files[p], name
+
+    # 09. Risk Assumption Map: official defaults, not the business unit's own list --------
+    rmap = Sheet(etree.fromstring(files[path["09. Risk Assumption Map"]]))
+    for r in range(5, 25):
+        for i, col in enumerate("CDEFGHI"):
+            c = rmap.cell("%s%d" % (col, r))
+            assert c is None or c.find(Q("f")) is None, (col, r)
+            text = OFFICIAL_MAP[r - 5][i] if r - 5 < len(OFFICIAL_MAP) else None
+            if text:
+                set_text(rmap, "%s%d" % (col, r), text)
+            elif c is not None:
+                for ch in list(c):
+                    c.remove(ch)
+                c.attrib.pop("t", None)
+    files[path["09. Risk Assumption Map"]] = etree.tostring(rmap.doc, xml_declaration=True, encoding="UTF-8", standalone=True)
 
     # 15. BCM Risk Register: drop the unlinked columns T-W ---------------------------------
     reg = Sheet(etree.fromstring(files[path["15. BCM Risk Register"]]))
